@@ -110,7 +110,7 @@ func (w *DefaultBatchWorker) execute(ctx context.Context) {
 					logrus.Infof("Retry: %d . Retry limitation: %d . Message: %v.", retryCount, w.limitRetry, errList[i])
 				}
 				w.ErrorHandler.HandleError(ctx, errList[i])
-				break
+				continue
 			} else if logrus.IsLevelEnabled(logrus.DebugLevel) {
 				logrus.Debugf("Retry: %d . Message: %v.", retryCount, errList[i])
 			}
@@ -120,7 +120,6 @@ func (w *DefaultBatchWorker) execute(ctx context.Context) {
 			if er2 != nil {
 				logrus.Errorf("Cannot retry %v . Error: %s", errList[i], er2.Error())
 			}
-			break
 		}
 	}
 	w.resetState(ctx)
