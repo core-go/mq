@@ -17,20 +17,21 @@ type DefaultBatchWorker struct {
 	RetryService       RetryService
 	RetryCountName     string
 	ErrorHandler       ErrorHandler
+	Goroutine          bool
 	messages           []*Message
 	latestExecutedTime int64
 	mux                sync.Mutex
 }
 
 func NewBatchWorkerByConfig(batchConfig BatchWorkerConfig, repository BatchHandler, retryService RetryService, retryCountName string, errorHandler ErrorHandler) *DefaultBatchWorker {
-	return NewBatchWorker(batchConfig.BatchSize, batchConfig.Timeout, batchConfig.LimitRetry, repository, retryService, retryCountName, errorHandler)
+	return NewBatchWorker(batchConfig.BatchSize, batchConfig.Timeout, batchConfig.LimitRetry, repository, retryService, retryCountName, errorHandler, batchConfig.Goroutine)
 }
 
 func NewDefaultBatchWorker(batchConfig BatchWorkerConfig, repository BatchHandler, retryService RetryService) *DefaultBatchWorker {
-	return NewBatchWorker(batchConfig.BatchSize, batchConfig.Timeout, batchConfig.LimitRetry, repository, retryService, "", nil)
+	return NewBatchWorker(batchConfig.BatchSize, batchConfig.Timeout, batchConfig.LimitRetry, repository, retryService, "", nil, batchConfig.Goroutine)
 }
 
-func NewBatchWorker(batchSize int, timeout int64, limitRetry int, repository BatchHandler, retryService RetryService, retryCountName string, errorHandler ErrorHandler) *DefaultBatchWorker {
+func NewBatchWorker(batchSize int, timeout int64, limitRetry int, repository BatchHandler, retryService RetryService, retryCountName string, errorHandler ErrorHandler, goroutine bool) *DefaultBatchWorker {
 	if len(retryCountName) == 0 {
 		retryCountName = "retryCount"
 	}
@@ -45,6 +46,7 @@ func NewBatchWorker(batchSize int, timeout int64, limitRetry int, repository Bat
 		RetryService:   retryService,
 		RetryCountName: retryCountName,
 		ErrorHandler:   errorHandler,
+		Goroutine:      goroutine,
 	}
 }
 
@@ -57,13 +59,13 @@ func (w *DefaultBatchWorker) OnConsume(ctx context.Context, message *Message) {
 		logrus.Debug("OnConsume - message is nil")
 	}
 
-	if w.readyToExecute(ctx) {
+	if w.ready(ctx) {
 		w.execute(ctx)
 	}
 	w.mux.Unlock()
 }
 
-func (w *DefaultBatchWorker) readyToExecute(ctx context.Context) bool {
+func (w *DefaultBatchWorker) ready(ctx context.Context) bool {
 	isReady := false
 	now := time.Now().Unix()
 	batchSize := len(w.messages)
@@ -71,11 +73,13 @@ func (w *DefaultBatchWorker) readyToExecute(ctx context.Context) bool {
 	if batchSize > 0 && (batchSize >= w.batchSize || w.latestExecutedTime+w.timeout < now) {
 		isReady = true
 	}
-	if logrus.IsLevelEnabled(logrus.DebugLevel) {
-		if isReady {
-			logrus.Debugf("Ready to execute: Next %d - Now %d - Batch Size %d - Size: %v - LatestExecutedTime: %v - Timeout: %v", w.latestExecutedTime+w.timeout, now, batchSize, w.batchSize, w.latestExecutedTime, w.timeout)
-		} else {
-			logrus.Debugf("Not ready to execute: Now: %v - Batch Size: %v - Size: %v - LatestExecutedTime: %v, Timeout: %v", now, batchSize, w.batchSize, w.latestExecutedTime, w.timeout)
+	if isReady {
+		if logrus.IsLevelEnabled(logrus.InfoLevel) {
+			logrus.Infof("Meet the conditions to run: Next %d - Now %d - Batch Size %d - Size: %v - LatestExecutedTime: %v - Timeout: %v", w.latestExecutedTime+w.timeout, now, batchSize, w.batchSize, w.latestExecutedTime, w.timeout)
+		}
+	} else {
+		if logrus.IsLevelEnabled(logrus.DebugLevel) {
+			logrus.Debugf("Does not meet the conditions to run: Now: %v - Batch Size: %v - Size: %v - LatestExecutedTime: %v, Timeout: %v", now, batchSize, w.batchSize, w.latestExecutedTime, w.timeout)
 		}
 	}
 	return isReady
@@ -84,7 +88,7 @@ func (w *DefaultBatchWorker) readyToExecute(ctx context.Context) bool {
 func (w *DefaultBatchWorker) execute(ctx context.Context) {
 	lenMessages := len(w.messages)
 	if lenMessages == 0 {
-		w.resetState(ctx)
+		w.reset(ctx)
 		return
 	}
 
@@ -122,10 +126,10 @@ func (w *DefaultBatchWorker) execute(ctx context.Context) {
 			}
 		}
 	}
-	w.resetState(ctx)
+	w.reset(ctx)
 }
 
-func (w *DefaultBatchWorker) resetState(ctx context.Context) {
+func (w *DefaultBatchWorker) reset(ctx context.Context) {
 	w.messages = w.messages[:0]
 	w.latestExecutedTime = time.Now().Unix()
 }
