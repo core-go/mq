@@ -10,7 +10,7 @@ type IdGenerator interface {
 	Generate(ctx context.Context) (string, error)
 }
 
-func NewDynamicActivityLogSender(producer Producer, config ActivityLogConfig, schema ActivityLogSchema, generator IdGenerator, header *[]string) *ActivityLogSender {
+func NewActivityLogSender(producer Producer, config ActivityLogConfig, schema ActivityLogSchema, generator IdGenerator, header *[]string) *ActivityLogSender {
 	if len(schema.User) == 0 {
 		schema.User = "user"
 	}
@@ -57,9 +57,8 @@ type ActivityLogSender struct {
 }
 func (s *ActivityLogSender) SaveLog(ctx context.Context, resource string, action string, success bool, desc string) error {
 	log := make(map[string]interface{})
-	now := time.Now()
 	ch := s.Schema
-	log[ch.Timestamp] = &now
+	log[ch.Timestamp] = time.Now()
 	log[ch.Resource] = resource
 	log[ch.Action] = action
 	if len(ch.Desc) > 0 {
