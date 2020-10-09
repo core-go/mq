@@ -10,7 +10,7 @@ type IdGenerator interface {
 	Generate(ctx context.Context) (string, error)
 }
 
-func NewActivityLogSender(producer Producer, config ActivityLogConfig, schema ActivityLogSchema, generator IdGenerator, header *[]string) *ActivityLogSender {
+func NewActivityLogSender(producer Producer, config ActivityLogConfig, schema ActivityLogSchema, generator IdGenerator) *ActivityLogSender {
 	if len(schema.User) == 0 {
 		schema.User = "user"
 	}
