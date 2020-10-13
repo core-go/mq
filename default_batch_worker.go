@@ -75,11 +75,11 @@ func (w *DefaultBatchWorker) ready(ctx context.Context) bool {
 	}
 	if isReady {
 		if logrus.IsLevelEnabled(logrus.InfoLevel) {
-			logrus.Infof("Meet the conditions to run: Next %d - Now %d - Batch Size %d - Size: %v - LatestExecutedTime: %v - Timeout: %v", w.latestExecutedTime+w.timeout, now, batchSize, w.batchSize, w.latestExecutedTime, w.timeout)
+			logrus.Infof("Meet the conditions to run: Next %d - Batch Size %d - Size: %v - LatestExecutedTime: %v - Timeout: %v", w.latestExecutedTime+w.timeout, batchSize, w.batchSize, w.latestExecutedTime, w.timeout)
 		}
 	} else {
 		if logrus.IsLevelEnabled(logrus.DebugLevel) {
-			logrus.Debugf("Does not meet the conditions to run: Now: %v - Batch Size: %v - Size: %v - LatestExecutedTime: %v, Timeout: %v", now, batchSize, w.batchSize, w.latestExecutedTime, w.timeout)
+			logrus.Debugf("Does not meet the conditions to run: Batch Size: %v - Size: %v - LatestExecutedTime: %v, Timeout: %v", batchSize, w.batchSize, w.latestExecutedTime, w.timeout)
 		}
 	}
 	return isReady
@@ -98,31 +98,40 @@ func (w *DefaultBatchWorker) execute(ctx context.Context) {
 		logrus.Errorf("Error of Batch handling: %v", err)
 	}
 	if errList != nil && len(errList) > 0 {
-		l := len(errList)
-		for i := 0; i < l; i++ {
-			if errList[i].Attributes == nil {
-				errList[i].Attributes = map[string]string{}
+		if w.RetryService == nil {
+			l := len(errList)
+			for i := 0; i < l; i++ {
+				logrus.Error("Error Message: %v.", errList[i])
 			}
-			retryCount, err := strconv.Atoi(errList[i].Attributes[w.RetryCountName])
-			if err != nil {
-				retryCount = 1
-			}
-			retryCount++
-
-			if retryCount > w.limitRetry {
-				if logrus.IsLevelEnabled(logrus.InfoLevel) {
-					logrus.Infof("Retry: %d . Retry limitation: %d . Message: %v.", retryCount, w.limitRetry, errList[i])
+		} else {
+			l := len(errList)
+			for i := 0; i < l; i++ {
+				if errList[i].Attributes == nil {
+					errList[i].Attributes = map[string]string{}
 				}
-				w.ErrorHandler.HandleError(ctx, errList[i])
-				continue
-			} else if logrus.IsLevelEnabled(logrus.DebugLevel) {
-				logrus.Debugf("Retry: %d . Message: %v.", retryCount, errList[i])
-			}
+				retryCount, err := strconv.Atoi(errList[i].Attributes[w.RetryCountName])
+				if err != nil {
+					retryCount = 1
+				}
+				retryCount++
 
-			errList[i].Attributes[w.RetryCountName] = strconv.Itoa(retryCount)
-			er2 := w.RetryService.Retry(ctx, errList[i])
-			if er2 != nil {
-				logrus.Errorf("Cannot retry %v . Error: %s", errList[i], er2.Error())
+				if retryCount > w.limitRetry {
+					if logrus.IsLevelEnabled(logrus.InfoLevel) {
+						logrus.Infof("Retry: %d . Retry limitation: %d . Message: %v.", retryCount, w.limitRetry, errList[i])
+					}
+					if w.ErrorHandler != nil {
+						w.ErrorHandler.HandleError(ctx, errList[i])
+					}
+					continue
+				} else if logrus.IsLevelEnabled(logrus.DebugLevel) {
+					logrus.Debugf("Retry: %d . Message: %v.", retryCount, errList[i])
+				}
+
+				errList[i].Attributes[w.RetryCountName] = strconv.Itoa(retryCount)
+				er2 := w.RetryService.Retry(ctx, errList[i])
+				if er2 != nil {
+					logrus.Errorf("Cannot retry %v . Error: %s", errList[i], er2.Error())
+				}
 			}
 		}
 	}
