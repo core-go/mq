@@ -8,6 +8,11 @@ import (
 	"strconv"
 )
 
+type ConsumerConfig struct {
+	RetryCountName string `mapstructure:"retry_count_name"`
+	LimitRetry     int    `mapstructure:"limit_retry"`
+	Goroutines     bool   `mapstructure:"goroutines"`
+}
 type DefaultConsumerCaller struct {
 	ModelType      reflect.Type
 	Validator      Validator
@@ -18,8 +23,10 @@ type DefaultConsumerCaller struct {
 	ErrorHandler   ErrorHandler
 	Goroutines     bool
 }
-
-func NewDefaultConsumerCaller(modelType reflect.Type, writer Writer, limitRetry int, retryService RetryService, retryCountName string, validator Validator,
+func NewConsumerCallerByConfig(c ConsumerConfig, modelType reflect.Type, writer Writer, retryService RetryService, validator Validator, errorHandler ErrorHandler) *DefaultConsumerCaller {
+	return NewConsumerCaller(modelType, writer, c.LimitRetry, retryService, c.RetryCountName, validator, errorHandler, c.Goroutines)
+}
+func NewConsumerCaller(modelType reflect.Type, writer Writer, limitRetry int, retryService RetryService, retryCountName string, validator Validator,
 	errorHandler ErrorHandler,
 	goroutines bool) *DefaultConsumerCaller {
 	if len(retryCountName) == 0 {
@@ -59,12 +66,6 @@ func (c *DefaultConsumerCaller) Call(ctx context.Context, message *Message, err 
 		}
 	}
 
-	if message == nil {
-		if logrus.IsLevelEnabled(logrus.DebugLevel) {
-			logrus.Debug("OnConsume - message is nil")
-		}
-		return nil
-	}
 	item := message.Value
 	if item == nil {
 		v := InitModel(c.ModelType)
@@ -75,7 +76,15 @@ func (c *DefaultConsumerCaller) Call(ctx context.Context, message *Message, err 
 		}
 		item = reflect.Indirect(reflect.ValueOf(v)).Interface()
 	}
+	if c.Goroutines {
+		go c.write(ctx, message, item)
+		return nil
+	} else {
+		return c.write(ctx, message, item)
+	}
+}
 
+func (c *DefaultConsumerCaller) write(ctx context.Context, message *Message, item interface{}) error {
 	er3 := c.Writer.Write(ctx, item)
 	if er3 == nil {
 		return er3

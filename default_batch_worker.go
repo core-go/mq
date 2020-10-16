@@ -9,6 +9,8 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
+const TimeFormat = "15:04:05.000"
+
 type DefaultBatchWorker struct {
 	batchSize          int
 	timeout            int64
@@ -24,11 +26,11 @@ type DefaultBatchWorker struct {
 }
 
 func NewBatchWorkerByConfig(batchConfig BatchWorkerConfig, repository BatchHandler, retryService RetryService, retryCountName string, errorHandler ErrorHandler) *DefaultBatchWorker {
-	return NewBatchWorker(batchConfig.BatchSize, batchConfig.Timeout, batchConfig.LimitRetry, repository, retryService, retryCountName, errorHandler, batchConfig.Goroutine)
+	return NewBatchWorker(batchConfig.BatchSize, batchConfig.Timeout, batchConfig.LimitRetry, repository, retryService, retryCountName, errorHandler, batchConfig.Goroutines)
 }
 
 func NewDefaultBatchWorker(batchConfig BatchWorkerConfig, repository BatchHandler, retryService RetryService) *DefaultBatchWorker {
-	return NewBatchWorker(batchConfig.BatchSize, batchConfig.Timeout, batchConfig.LimitRetry, repository, retryService, "", nil, batchConfig.Goroutine)
+	return NewBatchWorker(batchConfig.BatchSize, batchConfig.Timeout, batchConfig.LimitRetry, repository, retryService, "", nil, batchConfig.Goroutines)
 }
 
 func NewBatchWorker(batchSize int, timeout int64, limitRetry int, repository BatchHandler, retryService RetryService, retryCountName string, errorHandler ErrorHandler, goroutine bool) *DefaultBatchWorker {
@@ -54,10 +56,7 @@ func (w *DefaultBatchWorker) OnConsume(ctx context.Context, message *Message) {
 	w.mux.Lock()
 	if message != nil {
 		w.messages = append(w.messages, message)
-	} else if logrus.IsLevelEnabled(logrus.DebugLevel) {
-		logrus.Debug("OnConsume - message is nil")
 	}
-
 	if w.ready(ctx) {
 		w.execute(ctx)
 	}
@@ -75,12 +74,7 @@ func (w *DefaultBatchWorker) ready(ctx context.Context) bool {
 	}
 	if isReady {
 		if logrus.IsLevelEnabled(logrus.InfoLevel) {
-			timeExecuted := t.Format("15:04:05.000")
-			logrus.Infof("Meet the conditions to run: Next %s - Batch Size %d - Size: %v - LatestExecutedTime: %s - Timeout: %v", timeExecuted, batchSize, w.batchSize, w.latestExecutedTime.String(), timeoutStr)
-		}
-	} else {
-		if logrus.IsLevelEnabled(logrus.DebugLevel) {
-			logrus.Debugf("Does not meet the conditions to run: Batch Size: %v - Size: %v - LatestExecutedTime: %s, Timeout: %v", batchSize, w.batchSize, w.latestExecutedTime.String(), timeoutStr)
+			logrus.Infof("Run: %d / %v - Next %s - Last %s - Timeout: %v", batchSize, w.batchSize, t.Format(TimeFormat), w.latestExecutedTime.Format(TimeFormat), timeoutStr)
 		}
 	}
 	return isReady
@@ -96,7 +90,7 @@ func (w *DefaultBatchWorker) execute(ctx context.Context) {
 	errList, err := w.BatchHandler.Handle(ctx, w.messages)
 
 	if err != nil {
-		logrus.Errorf("Error of Batch handling: %v", err)
+		logrus.Errorf("Error of Batch handling: %s", err.Error())
 	}
 	if errList != nil && len(errList) > 0 {
 		if w.RetryService == nil {
@@ -146,16 +140,12 @@ func (w *DefaultBatchWorker) reset(ctx context.Context) {
 
 func (w *DefaultBatchWorker) RunScheduler(ctx context.Context) {
 	w.reset(ctx)
-	if logrus.IsLevelEnabled(logrus.DebugLevel) {
-		logrus.Debug("Enter DefaultBatchWorker.RunScheduler")
-	}
 	ticker := time.NewTicker(time.Duration(w.timeout) * time.Millisecond)
 	go func() {
 		for {
 			select {
 			case <-ticker.C:
 				w.OnConsume(ctx, nil)
-				// do stuff
 			}
 		}
 	}()

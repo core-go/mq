@@ -48,7 +48,7 @@ func (h *MapBatchHandler) Handle(ctx context.Context, data []*Message) ([]*Messa
 		logrus.Debugf(`successIndices %v failIndices %v`, successIndices, failIndices)
 	}
 	if err != nil {
-		logrus.Errorf("Can't do bulk write: %v  Error: %s", v.Interface(), err.Error())
+		logrus.Errorf("Can't write batch: %v  Error: %s", v.Interface(), err.Error())
 		return data, err
 	}
 	for _, failIndex := range failIndices {
