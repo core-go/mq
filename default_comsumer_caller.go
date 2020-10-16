@@ -113,6 +113,7 @@ func (c *DefaultConsumerCaller) Call(ctx context.Context, message *Message, err 
 }
 
 func (c *DefaultConsumerCaller) write(ctx context.Context, message *Message, item interface{}) error {
+	ctx = context.WithValue(ctx, "message", message)
 	if c.RetryService == nil && c.Retries != nil && len(*c.Retries) > 0 {
 		if er1 := c.Writer.Write(ctx, item); er1 != nil {
 			i := 0
