@@ -62,19 +62,17 @@ func NewConsumerCaller(modelType reflect.Type, writer Writer, limitRetry int, re
 		ErrorHandler:   errorHandler,
 		Goroutines:     goroutines,
 	}
-	if retryService == nil {
-		retries := make([]time.Duration, 0)
-		r1 := time.Duration(30) * time.Second
-		r2 := time.Duration(60) * time.Second
-		r3 := time.Duration(120) * time.Second
-		retries = append(retries, r1)
-		retries = append(retries, r2)
-		retries = append(retries, r3)
-		c.Retries = &retries
-	}
 	return &c
 }
 
+func MakeDurations(vs []int64) []time.Duration {
+	durations := make([]time.Duration, 0)
+	for _, v := range vs {
+		d := time.Duration(v) * time.Second
+		durations = append(durations, d)
+	}
+	return durations
+}
 func (c *DefaultConsumerCaller) Call(ctx context.Context, message *Message, err error) error {
 	if err != nil {
 		logrus.Errorf("Processing message error: %s", err.Error())
