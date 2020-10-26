@@ -83,7 +83,9 @@ func (c *DefaultConsumerCaller) Call(ctx context.Context, message *Message, err 
 		}
 		return nil
 	}
-
+	if logrus.IsLevelEnabled(logrus.DebugLevel) {
+		logrus.Debugf("Received message: %s", message.Data)
+	}
 	if c.Validator != nil {
 		er2 := c.Validator.Validate(ctx, message)
 		if er2 != nil {
