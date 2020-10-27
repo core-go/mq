@@ -3,7 +3,6 @@ package mq
 import (
 	"context"
 	"encoding/json"
-	"github.com/sirupsen/logrus"
 	"reflect"
 	"strconv"
 	"time"
@@ -75,21 +74,18 @@ func MakeDurations(vs []int64) []time.Duration {
 }
 func (c *DefaultConsumerCaller) Call(ctx context.Context, message *Message, err error) error {
 	if err != nil {
-		logrus.Errorf("Processing message error: %s", err.Error())
+		Errorf(ctx, "Processing message error: %s", err.Error())
 		return err
 	} else if message == nil {
-		if logrus.IsLevelEnabled(logrus.WarnLevel) {
-			logrus.Warn("Do not proceed empty message")
-		}
 		return nil
 	}
-	if logrus.IsLevelEnabled(logrus.DebugLevel) {
-		logrus.Debugf("Received message: %s", message.Data)
+	if IsDebugEnabled() {
+		Debugf(ctx, "Received message: %s", message.Data)
 	}
 	if c.Validator != nil {
 		er2 := c.Validator.Validate(ctx, message)
 		if er2 != nil {
-			logrus.Errorf("Message is invalid: %v  Error: %s", message, er2.Error())
+			Errorf(ctx, "Message is invalid: %v  Error: %s", message, er2.Error())
 			return er2
 		}
 	}
@@ -99,7 +95,7 @@ func (c *DefaultConsumerCaller) Call(ctx context.Context, message *Message, err 
 		v := InitModel(c.ModelType)
 		er1 := json.Unmarshal(message.Data, v)
 		if er1 != nil {
-			logrus.Errorf(`can't unmarshal item: %v. Error: %s`, string(message.Data), er1.Error())
+			Errorf(ctx, `can't unmarshal item: %v. Error: %s`, string(message.Data), er1.Error())
 			return nil
 		}
 		item = reflect.Indirect(reflect.ValueOf(v)).Interface()
@@ -117,18 +113,18 @@ func (c *DefaultConsumerCaller) write(ctx context.Context, message *Message, ite
 	if c.RetryService == nil && c.Retries != nil && len(*c.Retries) > 0 {
 		if er1 := c.Writer.Write(ctx, item); er1 != nil {
 			i := 0
-			err := Retry(*c.Retries, func() (err error) {
+			err := Retry(ctx, *c.Retries, func() (err error) {
 				i = i + 1
 				er2 := c.Writer.Write(ctx, item)
 				if er2 == nil {
 					s := string(message.Data)
-					logrus.Infof("Write successfully after %d retries %s", i, s)
+					Infof(ctx, "Write successfully after %d retries %s", i, s)
 				}
 				return er2
 			})
 			if err != nil {
 				s := string(message.Data)
-				logrus.Errorf("Failed to write: %s. Error: %v.", s, er1)
+				Errorf(ctx, "Failed to write: %s. Error: %v.", s, er1)
 			}
 			return err
 		}
@@ -138,7 +134,7 @@ func (c *DefaultConsumerCaller) write(ctx context.Context, message *Message, ite
 		if er3 == nil {
 			return er3
 		}
-		logrus.Error(er3.Error())
+		Error(ctx, er3.Error())
 		if c.RetryService == nil {
 			return er3
 		}
@@ -149,20 +145,20 @@ func (c *DefaultConsumerCaller) write(ctx context.Context, message *Message, ite
 		}
 		retryCount++
 		if retryCount > c.LimitRetry {
-			if logrus.IsLevelEnabled(logrus.InfoLevel) {
-				logrus.Infof("Retry: %d . Retry limitation: %d . Message: %v.", retryCount, c.LimitRetry, message)
+			if IsInfoEnabled() {
+				Infof(ctx, "Retry: %d . Retry limitation: %d . Message: %v.", retryCount, c.LimitRetry, message)
 			}
 			if c.ErrorHandler != nil {
 				c.ErrorHandler.HandleError(ctx, message)
 			}
 		} else {
-			if logrus.IsLevelEnabled(logrus.DebugLevel) {
-				logrus.Debugf("Retry: %d . Message: %v.", retryCount, message)
+			if IsDebugEnabled() {
+				Debugf(ctx, "Retry: %d . Message: %v.", retryCount, message)
 			}
 			message.Attributes[c.RetryCountName] = strconv.Itoa(retryCount)
 			er2 := c.RetryService.Retry(ctx, message)
 			if er2 != nil {
-				logrus.Errorf("Cannot retry %v . Error: %s", message, er2.Error())
+				Errorf(ctx, "Cannot retry %v . Error: %s", message, er2.Error())
 			}
 		}
 		return nil

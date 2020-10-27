@@ -2,7 +2,6 @@ package mq
 
 import (
 	"context"
-	"github.com/sirupsen/logrus"
 )
 
 type MqRetryService struct {
@@ -16,9 +15,9 @@ func NewMqRetryService(producer Producer) *MqRetryService {
 func (s *MqRetryService) Retry(ctx context.Context, message *Message) error {
 	_, err := s.producer.Produce(ctx, message.Data, &message.Attributes)
 	if err != nil {
-		logrus.Errorf(`Retry put to mq error: %s`, err.Error())
-	} else if logrus.IsLevelEnabled(logrus.DebugLevel){
-		logrus.Debug(`Retry put to mq success.`)
+		Errorf(ctx, `Retry put to mq error: %s`, err.Error())
+	} else if IsDebugEnabled() {
+		Debug(ctx, `Retry put to mq success.`)
 	}
 	return err
 }

@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/common-go/validator"
-	"github.com/sirupsen/logrus"
 	"reflect"
 )
 
@@ -27,11 +26,11 @@ func (v *DefaultValidator) Validate(ctx context.Context, message *Message) error
 	message.Value = reflect.Indirect(reflect.ValueOf(item)).Interface()
 	errorMessages, err := v.va.Validate(ctx, message.Value)
 	if err != nil {
-		logrus.Errorf("Validate error: %s", err.Error())
+		Errorf(ctx, "Validate error: %s", err.Error())
 		return err
 	}
 	if len(errorMessages) > 0 {
-		logrus.Errorf("errorMessages: %v", errorMessages, err)
+		Errorf(ctx, "errorMessages: %v", errorMessages, err)
 		return fmt.Errorf("data invalid: %v", errorMessages)
 	}
 	return nil

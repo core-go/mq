@@ -2,7 +2,6 @@ package mq
 
 import (
 	"context"
-	"github.com/sirupsen/logrus"
 )
 
 type BatchConsumerCaller struct {
@@ -17,21 +16,18 @@ func NewBatchConsumerCaller(batchWorker BatchWorker, validator Validator) *Batch
 
 func (c *BatchConsumerCaller) Call(ctx context.Context, message *Message, err error) error {
 	if err != nil {
-		logrus.Errorf("Processing message error: %s", err.Error())
+		Errorf(ctx, "Processing message error: %s", err.Error())
 		return err
 	} else if message == nil {
-		if logrus.IsLevelEnabled(logrus.WarnLevel) {
-			logrus.Warn("Do not proceed empty message")
-		}
 		return nil
 	}
-	if logrus.IsLevelEnabled(logrus.DebugLevel) {
-		logrus.Debugf("Received message: %s", message.Data)
+	if IsDebugEnabled() {
+		Debugf(ctx, "Received message: %s", message.Data)
 	}
 	if c.Validator != nil {
 		er2 := c.Validator.Validate(ctx, message)
 		if er2 != nil {
-			logrus.Errorf("Message is invalid: %v  Error: %s", message, er2.Error())
+			Errorf(ctx, "Message is invalid: %v  Error: %s", message, er2.Error())
 			return er2
 		}
 	}

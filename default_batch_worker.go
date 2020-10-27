@@ -5,8 +5,6 @@ import (
 	"strconv"
 	"sync"
 	"time"
-
-	"github.com/sirupsen/logrus"
 )
 
 const TimeFormat = "15:04:05.000"
@@ -73,8 +71,8 @@ func (w *DefaultBatchWorker) ready(ctx context.Context) bool {
 		isReady = true
 	}
 	if isReady {
-		if logrus.IsLevelEnabled(logrus.InfoLevel) {
-			logrus.Infof("Run: %d / %v - Next %s - Last %s - Timeout: %v", batchSize, w.batchSize, t.Format(TimeFormat), w.latestExecutedTime.Format(TimeFormat), timeoutStr)
+		if IsInfoEnabled() {
+			Infof(ctx, "Run: %d / %v - Next %s - Last %s - Timeout: %v", batchSize, w.batchSize, t.Format(TimeFormat), w.latestExecutedTime.Format(TimeFormat), timeoutStr)
 		}
 	}
 	return isReady
@@ -90,13 +88,13 @@ func (w *DefaultBatchWorker) execute(ctx context.Context) {
 	errList, err := w.BatchHandler.Handle(ctx, w.messages)
 
 	if err != nil {
-		logrus.Errorf("Error of Batch handling: %s", err.Error())
+		Errorf(ctx, "Error of Batch handling: %s", err.Error())
 	}
 	if errList != nil && len(errList) > 0 {
 		if w.RetryService == nil {
 			l := len(errList)
 			for i := 0; i < l; i++ {
-				logrus.Error("Error Message: %v.", errList[i])
+				Errorf(ctx, "Error Message: %v.", errList[i])
 			}
 		} else {
 			l := len(errList)
@@ -111,21 +109,21 @@ func (w *DefaultBatchWorker) execute(ctx context.Context) {
 				retryCount++
 
 				if retryCount > w.limitRetry {
-					if logrus.IsLevelEnabled(logrus.InfoLevel) {
-						logrus.Infof("Retry: %d . Retry limitation: %d . Message: %v.", retryCount, w.limitRetry, errList[i])
+					if IsInfoEnabled() {
+						Infof(ctx, "Retry: %d . Retry limitation: %d . Message: %v.", retryCount, w.limitRetry, errList[i])
 					}
 					if w.ErrorHandler != nil {
 						w.ErrorHandler.HandleError(ctx, errList[i])
 					}
 					continue
-				} else if logrus.IsLevelEnabled(logrus.DebugLevel) {
-					logrus.Debugf("Retry: %d . Message: %v.", retryCount, errList[i])
+				} else if IsDebugEnabled() {
+					Debugf(ctx, "Retry: %d . Message: %v.", retryCount, errList[i])
 				}
 
 				errList[i].Attributes[w.RetryCountName] = strconv.Itoa(retryCount)
 				er2 := w.RetryService.Retry(ctx, errList[i])
 				if er2 != nil {
-					logrus.Errorf("Cannot retry %v . Error: %s", errList[i], er2.Error())
+					Errorf(ctx, "Cannot retry %v . Error: %s", errList[i], er2.Error())
 				}
 			}
 		}

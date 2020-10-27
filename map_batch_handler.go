@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/sirupsen/logrus"
 	"reflect"
 	"strings"
 )
@@ -39,16 +38,16 @@ func (h *MapBatchHandler) Handle(ctx context.Context, data []*Message) ([]*Messa
 			messagesByteData = append(messagesByteData, message.Data)
 		}
 	}
-	if logrus.IsLevelEnabled(logrus.DebugLevel) {
-		logrus.Debugf(`models: %v`, v)
+	if IsDebugEnabled() {
+		Debugf(ctx, `models: %v`, v)
 	}
 	modelMaps, _ := h.ConvertToMaps(messagesByteData)
 	successIndices, failIndices, err := h.batchWriter.WriteBatch(ctx, modelMaps)
-	if logrus.IsLevelEnabled(logrus.DebugLevel) {
-		logrus.Debugf(`successIndices %v failIndices %v`, successIndices, failIndices)
+	if IsDebugEnabled() {
+		Debugf(ctx, `successIndices %v failIndices %v`, successIndices, failIndices)
 	}
 	if err != nil {
-		logrus.Errorf("Can't write batch: %v  Error: %s", v.Interface(), err.Error())
+		Errorf(ctx, "Can't write batch: %v  Error: %s", v.Interface(), err.Error())
 		return data, err
 	}
 	for _, failIndex := range failIndices {
