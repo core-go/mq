@@ -55,7 +55,8 @@ type ActivityLogSender struct {
 	Schema    ActivityLogSchema
 	Generator IdGenerator
 }
-func (s *ActivityLogSender) SaveLog(ctx context.Context, resource string, action string, success bool, desc string) error {
+
+func (s *ActivityLogSender) Write(ctx context.Context, resource string, action string, success bool, desc string) error {
 	log := make(map[string]interface{})
 	ch := s.Schema
 	log[ch.Timestamp] = time.Now()
