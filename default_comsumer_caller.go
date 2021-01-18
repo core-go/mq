@@ -3,6 +3,7 @@ package mq
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"reflect"
 	"strconv"
 	"time"
@@ -23,16 +24,18 @@ type DefaultConsumerCaller struct {
 	ErrorHandler   ErrorHandler
 	Retries        *[]time.Duration
 	Goroutines     bool
+	LogError       func(context.Context, string)
+	LogInfo        func(context.Context, string)
 }
 
-func NewConsumerCallerByConfig(c ConsumerConfig, modelType reflect.Type, writer Writer, retryService RetryService, validator Validator, errorHandler ErrorHandler) *DefaultConsumerCaller {
-	return NewConsumerCaller(modelType, writer, c.LimitRetry, retryService, c.RetryCountName, validator, errorHandler, c.Goroutines)
+func NewConsumerCallerByConfig(c ConsumerConfig, modelType reflect.Type, writer Writer, retryService RetryService, validator Validator, errorHandler ErrorHandler, logs ...func(context.Context, string)) *DefaultConsumerCaller {
+	return NewConsumerCaller(modelType, writer, c.LimitRetry, retryService, c.RetryCountName, validator, errorHandler, c.Goroutines, logs...)
 }
-func NewConsumerCallerWithRetries(modelType reflect.Type, writer Writer, validator Validator, retries []time.Duration, errorHandler ErrorHandler, goroutines bool) *DefaultConsumerCaller {
+func NewConsumerCallerWithRetries(modelType reflect.Type, writer Writer, validator Validator, retries []time.Duration, errorHandler ErrorHandler, goroutines bool, logs ...func(context.Context, string)) *DefaultConsumerCaller {
 	if errorHandler == nil {
 		errorHandler = NewErrorHandler()
 	}
-	c := DefaultConsumerCaller{
+	c := &DefaultConsumerCaller{
 		ModelType:    modelType,
 		Writer:       writer,
 		Validator:    validator,
@@ -40,18 +43,24 @@ func NewConsumerCallerWithRetries(modelType reflect.Type, writer Writer, validat
 		ErrorHandler: errorHandler,
 		Goroutines:   goroutines,
 	}
-	return &c
+	if len(logs) >= 1 {
+		c.LogError = logs[0]
+	}
+	if len(logs) >= 2 {
+		c.LogInfo = logs[1]
+	}
+	return c
 }
 func NewConsumerCaller(modelType reflect.Type, writer Writer, limitRetry int, retryService RetryService, retryCountName string, validator Validator,
 	errorHandler ErrorHandler,
-	goroutines bool) *DefaultConsumerCaller {
+	goroutines bool, logs ...func(context.Context, string)) *DefaultConsumerCaller {
 	if len(retryCountName) == 0 {
 		retryCountName = "retryCount"
 	}
 	if errorHandler == nil {
 		errorHandler = NewErrorHandler()
 	}
-	c := DefaultConsumerCaller{
+	c := &DefaultConsumerCaller{
 		ModelType:      modelType,
 		Writer:         writer,
 		Validator:      validator,
@@ -61,7 +70,13 @@ func NewConsumerCaller(modelType reflect.Type, writer Writer, limitRetry int, re
 		ErrorHandler:   errorHandler,
 		Goroutines:     goroutines,
 	}
-	return &c
+	if len(logs) >= 1 {
+		c.LogError = logs[0]
+	}
+	if len(logs) >= 2 {
+		c.LogInfo = logs[1]
+	}
+	return c
 }
 
 func MakeDurations(vs []int64) []time.Duration {
@@ -74,18 +89,24 @@ func MakeDurations(vs []int64) []time.Duration {
 }
 func (c *DefaultConsumerCaller) Call(ctx context.Context, message *Message, err error) error {
 	if err != nil {
-		Errorf(ctx, "Processing message error: %s", err.Error())
+		if c.LogError != nil {
+			m := "Processing message error: " + err.Error()
+			c.LogError(ctx, m)
+		}
 		return err
 	} else if message == nil {
 		return nil
 	}
-	if IsDebugEnabled() {
-		Debugf(ctx, "Received message: %s", message.Data)
+	if c.LogInfo != nil {
+		c.LogInfo(ctx, "Received message: " + string(message.Data))
 	}
 	if c.Validator != nil {
 		er2 := c.Validator.Validate(ctx, message)
 		if er2 != nil {
-			Errorf(ctx, "Message is invalid: %v  Error: %s", message, er2.Error())
+			if c.LogError != nil {
+				m := fmt.Sprintf("Message is invalid: %v  Error: %s", message, er2.Error())
+				c.LogError(ctx, m)
+			}
 			return er2
 		}
 	}
@@ -95,7 +116,10 @@ func (c *DefaultConsumerCaller) Call(ctx context.Context, message *Message, err 
 		v := InitModel(c.ModelType)
 		er1 := json.Unmarshal(message.Data, v)
 		if er1 != nil {
-			Errorf(ctx, `can't unmarshal item: %v. Error: %s`, string(message.Data), er1.Error())
+			if c.LogError != nil {
+				m := fmt.Sprintf(`can't unmarshal item: %s. Error: %s`, string(message.Data), er1.Error())
+				c.LogError(ctx, m)
+			}
 			return nil
 		}
 		item = reflect.Indirect(reflect.ValueOf(v)).Interface()
@@ -116,15 +140,15 @@ func (c *DefaultConsumerCaller) write(ctx context.Context, message *Message, ite
 			err := Retry(ctx, *c.Retries, func() (err error) {
 				i = i + 1
 				er2 := c.Writer.Write(ctx, item)
-				if er2 == nil {
-					s := string(message.Data)
-					Infof(ctx, "Write successfully after %d retries %s", i, s)
+				if er2 == nil && c.LogError != nil {
+					m := fmt.Sprintf("Write successfully after %d retries %s", i, string(message.Data))
+					c.LogError(ctx, m)
 				}
 				return er2
 			})
-			if err != nil {
-				s := string(message.Data)
-				Errorf(ctx, "Failed to write: %s. Error: %v.", s, er1)
+			if err != nil && c.LogError != nil {
+				m := fmt.Sprintf("Failed to write: %s. Error: %s.", string(message.Data), er1.Error())
+				c.LogError(ctx, m)
 			}
 			return err
 		}
@@ -134,7 +158,7 @@ func (c *DefaultConsumerCaller) write(ctx context.Context, message *Message, ite
 		if er3 == nil {
 			return er3
 		}
-		Error(ctx, er3.Error())
+		c.LogError(ctx, er3.Error())
 		if c.RetryService == nil {
 			return er3
 		}
@@ -145,20 +169,23 @@ func (c *DefaultConsumerCaller) write(ctx context.Context, message *Message, ite
 		}
 		retryCount++
 		if retryCount > c.LimitRetry {
-			if IsInfoEnabled() {
-				Infof(ctx, "Retry: %d . Retry limitation: %d . Message: %v.", retryCount, c.LimitRetry, message)
+			if c.LogInfo != nil {
+				m := fmt.Sprintf("Retry: %d . Retry limitation: %d . Message: %v.", retryCount, c.LimitRetry, message)
+				c.LogInfo(ctx, m)
 			}
 			if c.ErrorHandler != nil {
 				c.ErrorHandler.HandleError(ctx, message)
 			}
 		} else {
-			if IsDebugEnabled() {
-				Debugf(ctx, "Retry: %d . Message: %v.", retryCount, message)
+			if c.LogInfo != nil {
+				m := fmt.Sprintf("Retry: %d . Message: %v.", retryCount, message)
+				c.LogInfo(ctx, m)
 			}
 			message.Attributes[c.RetryCountName] = strconv.Itoa(retryCount)
 			er2 := c.RetryService.Retry(ctx, message)
-			if er2 != nil {
-				Errorf(ctx, "Cannot retry %v . Error: %s", message, er2.Error())
+			if er2 != nil && c.LogError != nil {
+				m := fmt.Sprintf("Cannot retry %v . Error: %s", message, er2.Error())
+				c.LogError(ctx, m)
 			}
 		}
 		return nil

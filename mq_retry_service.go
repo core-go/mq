@@ -5,19 +5,31 @@ import (
 )
 
 type MqRetryService struct {
-	producer Producer
+	Producer Producer
+	LogError func(context.Context, string)
+	LogInfo  func(context.Context, string)
 }
 
-func NewMqRetryService(producer Producer) *MqRetryService {
-	return &MqRetryService{producer}
+func NewMqRetryService(producer Producer, logs ...func(context.Context, string)) *MqRetryService {
+	s := &MqRetryService{Producer: producer}
+	if len(logs) >= 1 {
+		s.LogError = logs[0]
+	}
+	if len(logs) >= 2 {
+		s.LogInfo = logs[1]
+	}
+	return s
 }
 
 func (s *MqRetryService) Retry(ctx context.Context, message *Message) error {
-	_, err := s.producer.Produce(ctx, message.Data, &message.Attributes)
+	_, err := s.Producer.Produce(ctx, message.Data, &message.Attributes)
 	if err != nil {
-		Errorf(ctx, `Retry put to mq error: %s`, err.Error())
-	} else if IsDebugEnabled() {
-		Debug(ctx, `Retry put to mq success.`)
+		if s.LogError != nil {
+			m := `Retry put to mq error: ` + err.Error()
+			s.LogError(ctx, m)
+		}
+	} else if s.LogInfo != nil {
+		s.LogInfo(ctx, `Retry put to mq success.`)
 	}
 	return err
 }

@@ -11,27 +11,37 @@ import (
 type DefaultValidator struct {
 	modelType reflect.Type
 	va        validator.Validator
+	LogError  func(context.Context, string)
 }
 
-func NewValidator(modelType reflect.Type, va validator.Validator) *DefaultValidator {
-	return &DefaultValidator{modelType, va}
+func NewValidator(modelType reflect.Type, va validator.Validator, logError ...func(context.Context, string)) *DefaultValidator {
+	v := &DefaultValidator{modelType: modelType, va: va}
+	if len(logError) >= 1 {
+		v.LogError = logError[0]
+	}
+	return v
 }
 
 func (v *DefaultValidator) Validate(ctx context.Context, message *Message) error {
 	item := InitModel(v.modelType)
 	err := json.Unmarshal(message.Data, item)
 	if err != nil {
-		return fmt.Errorf(`can't unmarshal item: %v. Error: %s`, string(message.Data), err.Error())
+		return fmt.Errorf(`can't unmarshal item: %s. Error: %s`, string(message.Data), err.Error())
 	}
 	message.Value = reflect.Indirect(reflect.ValueOf(item)).Interface()
 	errorMessages, err := v.va.Validate(ctx, message.Value)
 	if err != nil {
-		Errorf(ctx, "Validate error: %s", err.Error())
+		if v.LogError != nil {
+			v.LogError(ctx, "Validate error: " + err.Error())
+		}
 		return err
 	}
 	if len(errorMessages) > 0 {
-		Errorf(ctx, "errorMessages: %v", errorMessages, err)
-		return fmt.Errorf("data invalid: %v", errorMessages)
+		m := fmt.Sprintf("invalid data: %v", errorMessages)
+		if v.LogError != nil {
+			v.LogError(ctx, m)
+		}
+		return fmt.Errorf(m)
 	}
 	return nil
 }

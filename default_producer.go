@@ -2,36 +2,38 @@ package mq
 
 import (
 	"context"
+	"fmt"
 	"time"
 )
 
 type DefaultProducer struct {
 	Producer   Producer
 	Retries    []time.Duration
+	Log        func(context.Context, string)
 	Goroutines bool
 }
 
-func NewProducer(producer Producer, goroutines bool, retries ...time.Duration) *DefaultProducer {
-	return &DefaultProducer{Producer: producer, Retries: retries, Goroutines: goroutines}
+func NewProducer(producer Producer, goroutines bool, log func(context.Context, string), retries ...time.Duration) *DefaultProducer {
+	return &DefaultProducer{Producer: producer, Log: log, Retries: retries, Goroutines: goroutines}
 }
 func (c *DefaultProducer) Produce(ctx context.Context, data []byte, attributes *map[string]string) (string, error) {
 	if !c.Goroutines {
-		return Produce(ctx, c.Producer, data, attributes, c.Retries...)
+		return Produce(ctx, c.Producer, data, attributes, c.Log, c.Retries...)
 	} else {
-		go Produce(ctx, c.Producer, data, attributes, c.Retries...)
+		go Produce(ctx, c.Producer, data, attributes, c.Log, c.Retries...)
 		return "", nil
 	}
 }
-func Produce(ctx context.Context, producer Producer, data []byte, attributes *map[string]string, retries ...time.Duration) (string, error) {
+func Produce(ctx context.Context, producer Producer, data []byte, attributes *map[string]string, log func(context.Context, string), retries ...time.Duration) (string, error) {
 	l := len(retries)
 	if l == 0 {
 		return producer.Produce(ctx, data, attributes)
 	} else {
-		return ProduceWithRetries(ctx, producer, data, attributes, retries)
+		return ProduceWithRetries(ctx, producer, data, attributes, retries, log)
 	}
 }
 
-func ProduceWithRetries(ctx context.Context, producer Producer, data []byte, attributes *map[string]string, retries []time.Duration) (string, error) {
+func ProduceWithRetries(ctx context.Context, producer Producer, data []byte, attributes *map[string]string, retries []time.Duration, log func(context.Context, string)) (string, error) {
 	id, er1 := producer.Produce(ctx, data, attributes)
 	if er1 == nil {
 		return id, er1
@@ -41,15 +43,17 @@ func ProduceWithRetries(ctx context.Context, producer Producer, data []byte, att
 		i = i + 1
 		id2, er2 := producer.Produce(ctx, data, attributes)
 		id = id2
-		if er2 == nil {
+		if er2 == nil && log != nil {
 			s := string(data)
-			Infof(ctx, "Produce successfully after %d retries %s", i, s)
+			m := fmt.Sprintf("Produce successfully after %d retries %s", i, s)
+			log(ctx, m)
 		}
 		return er2
 	})
-	if err != nil {
+	if err != nil && log != nil {
 		s := string(data)
-		Errorf(ctx, "Failed to produce: %s. Error: %v.", s, err)
+		m := fmt.Sprintf("Failed to produce: %s. Error: %v.", s, err)
+		log(ctx, m)
 	}
 	return id, err
 }

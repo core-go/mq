@@ -15,17 +15,26 @@ type TagName struct {
 }
 
 type MapBatchHandler struct {
+	LogError     func(context.Context, string)
+	LogInfo      func(context.Context, string)
 	modelType    reflect.Type
 	modelsType   reflect.Type
 	batchWriter  MapsWriter
 	mapJsonIndex map[string]TagName
 }
 
-func NewMapBatchHandler(modelType reflect.Type, bulkWriter MapsWriter) *MapBatchHandler {
+func NewMapBatchHandler(modelType reflect.Type, bulkWriter MapsWriter, logs ...func(context.Context, string)) *MapBatchHandler {
 	modelsType := reflect.Zero(reflect.SliceOf(modelType)).Type()
 	typesTag := []string{"json", "bson"}
 	mapJsonIndex := BuildMapField(modelType, typesTag, "json")
-	return &MapBatchHandler{modelType, modelsType, bulkWriter, mapJsonIndex}
+	h := &MapBatchHandler{modelType: modelType, modelsType: modelsType, batchWriter: bulkWriter, mapJsonIndex: mapJsonIndex}
+	if len(logs) >= 1 {
+		h.LogError = logs[0]
+	}
+	if len(logs) >= 2 {
+		h.LogInfo = logs[1]
+	}
+	return h
 }
 
 func (h *MapBatchHandler) Handle(ctx context.Context, data []*Message) ([]*Message, error) {
@@ -38,17 +47,28 @@ func (h *MapBatchHandler) Handle(ctx context.Context, data []*Message) ([]*Messa
 			messagesByteData = append(messagesByteData, message.Data)
 		}
 	}
-	if IsDebugEnabled() {
-		Debugf(ctx, `models: %v`, v)
+	if h.LogInfo != nil {
+		m := fmt.Sprintf(`models: %v`, v)
+		h.LogInfo(ctx, m)
 	}
-	modelMaps, _ := h.ConvertToMaps(messagesByteData)
-	successIndices, failIndices, err := h.batchWriter.WriteBatch(ctx, modelMaps)
-	if IsDebugEnabled() {
-		Debugf(ctx, `successIndices %v failIndices %v`, successIndices, failIndices)
+	modelMaps, er0 := h.ConvertToMaps(messagesByteData)
+	if er0 != nil {
+		if h.LogError != nil {
+			m := "error when converting to map: " + er0.Error()
+			h.LogError(ctx, m)
+		}
 	}
-	if err != nil {
-		Errorf(ctx, "Can't write batch: %v  Error: %s", v.Interface(), err.Error())
-		return data, err
+	successIndices, failIndices, er1 := h.batchWriter.WriteBatch(ctx, modelMaps)
+	if h.LogInfo != nil {
+		m := fmt.Sprintf(`success indices %v fail indices %v`, successIndices, failIndices)
+		h.LogInfo(ctx, m)
+	}
+	if er1 != nil {
+		if h.LogError != nil {
+			m := fmt.Sprintf("Can't write batch: %v  Error: %s", v.Interface(), er1.Error())
+			h.LogError(ctx, m)
+		}
+		return data, er1
 	}
 	for _, failIndex := range failIndices {
 		failMessages = append(failMessages, data[failIndex])

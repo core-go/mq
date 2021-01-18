@@ -2,32 +2,47 @@ package mq
 
 import (
 	"context"
+	"fmt"
 )
 
 type BatchConsumerCaller struct {
 	BatchWorker BatchWorker
 	Validator   Validator
+	LogError    func(context.Context, string)
+	LogInfo     func(context.Context, string)
 }
 
-func NewBatchConsumerCaller(batchWorker BatchWorker, validator Validator) *BatchConsumerCaller {
-	b := BatchConsumerCaller{batchWorker, validator}
+func NewBatchConsumerCaller(batchWorker BatchWorker, validator Validator, logs ...func(context.Context, string)) *BatchConsumerCaller {
+	b := BatchConsumerCaller{BatchWorker: batchWorker, Validator: validator}
+	if len(logs) >= 1 {
+		b.LogError = logs[0]
+	}
+	if len(logs) >= 2 {
+		b.LogInfo = logs[1]
+	}
 	return &b
 }
 
 func (c *BatchConsumerCaller) Call(ctx context.Context, message *Message, err error) error {
 	if err != nil {
-		Errorf(ctx, "Processing message error: %s", err.Error())
+		if c.LogError != nil {
+			m := fmt.Sprintf("Processing message error: %s", err.Error())
+			c.LogError(ctx, m)
+		}
 		return err
 	} else if message == nil {
 		return nil
 	}
-	if IsDebugEnabled() {
-		Debugf(ctx, "Received message: %s", message.Data)
+	if c.LogInfo != nil {
+		c.LogInfo(ctx, "Received message: " + string(message.Data))
 	}
 	if c.Validator != nil {
 		er2 := c.Validator.Validate(ctx, message)
 		if er2 != nil {
-			Errorf(ctx, "Message is invalid: %v  Error: %s", message, er2.Error())
+			if c.LogError != nil {
+				m := fmt.Sprintf("Message is invalid: %v  Error: %s", message, er2.Error())
+				c.LogError(ctx, m)
+			}
 			return er2
 		}
 	}

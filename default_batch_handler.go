@@ -11,11 +11,20 @@ type DefaultBatchHandler struct {
 	modelType   reflect.Type
 	modelsType  reflect.Type
 	batchWriter BatchWriter
+	LogError func(context.Context, string)
+	LogInfo  func(context.Context, string)
 }
 
-func NewBatchHandler(modelType reflect.Type, bulkWriter BatchWriter) *DefaultBatchHandler {
+func NewBatchHandler(modelType reflect.Type, bulkWriter BatchWriter, logs ...func(context.Context, string)) *DefaultBatchHandler {
 	modelsType := reflect.Zero(reflect.SliceOf(modelType)).Type()
-	return &DefaultBatchHandler{modelType, modelsType, bulkWriter}
+	h := &DefaultBatchHandler{modelType: modelType, modelsType: modelsType, batchWriter: bulkWriter}
+	if len(logs) >= 1 {
+		h.LogError = logs[0]
+	}
+	if len(logs) >= 2 {
+		h.LogInfo = logs[1]
+	}
+	return h
 }
 
 func (h *DefaultBatchHandler) Handle(ctx context.Context, data []*Message) ([]*Message, error) {
@@ -30,21 +39,26 @@ func (h *DefaultBatchHandler) Handle(ctx context.Context, data []*Message) ([]*M
 			err := json.Unmarshal(message.Data, item)
 			if err != nil {
 				failMessages = append(failMessages, message)
-				return failMessages, fmt.Errorf(`can't unmarshal item: %v. Error: %s`, string(message.Data), err.Error())
+				return failMessages, fmt.Errorf(`can't unmarshal item: %s. Error: %s`, string(message.Data), err.Error())
 			}
 			x := reflect.Indirect(reflect.ValueOf(item)).Interface()
 			v = reflect.Append(v, reflect.ValueOf(x))
 		}
 	}
-	if IsDebugEnabled() {
-		Debugf(ctx, `models: %v`, v)
+	if h.LogInfo != nil {
+		m := fmt.Sprintf(`models: %v`, v)
+		h.LogInfo(ctx, m)
 	}
 	successIndices, failIndices, err := h.batchWriter.WriteBatch(ctx, v.Interface())
-	if IsDebugEnabled() {
-		Debugf(ctx, `successIndices %v failIndices %v`, successIndices, failIndices)
+	if h.LogInfo != nil {
+		m := fmt.Sprintf(`success indices %v fail indices %v`, successIndices, failIndices)
+		h.LogInfo(ctx, m)
 	}
 	if err != nil {
-		Errorf(ctx, "Can't do bulk write: %v  Error: %s", v.Interface(), err.Error())
+		if h.LogError != nil {
+			m := fmt.Sprintf("Can't do bulk write: %v  Error: %s", v.Interface(), err.Error())
+			h.LogError(ctx, m)
+		}
 		return data, err
 	}
 	for _, failIndex := range failIndices {
