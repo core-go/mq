@@ -52,7 +52,7 @@ func ProduceWithRetries(ctx context.Context, producer Producer, data []byte, att
 	})
 	if err != nil && log != nil {
 		s := string(data)
-		m := fmt.Sprintf("Failed to produce: %s. Error: %v.", s, err)
+		m := fmt.Sprintf("Failed to produce: %s. Error: %s.", s, err.Error())
 		log(ctx, m)
 	}
 	return id, err

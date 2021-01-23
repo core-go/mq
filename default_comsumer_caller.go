@@ -98,13 +98,13 @@ func (c *DefaultConsumerCaller) Call(ctx context.Context, message *Message, err 
 		return nil
 	}
 	if c.LogInfo != nil {
-		c.LogInfo(ctx, "Received message: " + string(message.Data))
+		c.LogInfo(ctx, "Received message: "+string(message.Data))
 	}
 	if c.Validator != nil {
 		er2 := c.Validator.Validate(ctx, message)
 		if er2 != nil {
 			if c.LogError != nil {
-				m := fmt.Sprintf("Message is invalid: %v  Error: %s", message, er2.Error())
+				m := fmt.Sprintf("Message is invalid: %s  Error: %s", message, er2.Error())
 				c.LogError(ctx, m)
 			}
 			return er2
@@ -170,7 +170,7 @@ func (c *DefaultConsumerCaller) write(ctx context.Context, message *Message, ite
 		retryCount++
 		if retryCount > c.LimitRetry {
 			if c.LogInfo != nil {
-				m := fmt.Sprintf("Retry: %d . Retry limitation: %d . Message: %v.", retryCount, c.LimitRetry, message)
+				m := fmt.Sprintf("Retry: %d . Retry limitation: %d . Message: %s.", retryCount, c.LimitRetry, message)
 				c.LogInfo(ctx, m)
 			}
 			if c.ErrorHandler != nil {
@@ -178,13 +178,13 @@ func (c *DefaultConsumerCaller) write(ctx context.Context, message *Message, ite
 			}
 		} else {
 			if c.LogInfo != nil {
-				m := fmt.Sprintf("Retry: %d . Message: %v.", retryCount, message)
+				m := fmt.Sprintf("Retry: %d . Message: %s.", retryCount, message)
 				c.LogInfo(ctx, m)
 			}
 			message.Attributes[c.RetryCountName] = strconv.Itoa(retryCount)
 			er2 := c.RetryService.Retry(ctx, message)
 			if er2 != nil && c.LogError != nil {
-				m := fmt.Sprintf("Cannot retry %v . Error: %s", message, er2.Error())
+				m := fmt.Sprintf("Cannot retry %s . Error: %s", message, er2.Error())
 				c.LogError(ctx, m)
 			}
 		}

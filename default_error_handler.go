@@ -19,7 +19,7 @@ type DefaultErrorHandler struct {
 
 func (w *DefaultErrorHandler) HandleError(ctx context.Context, message *Message) error {
 	if w.LogError != nil {
-		m := fmt.Sprintf("Fail after all retries: %v", message)
+		m := fmt.Sprintf("Fail after all retries: %s", message)
 		w.LogError(ctx, m)
 	}
 	return nil

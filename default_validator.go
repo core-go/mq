@@ -32,12 +32,12 @@ func (v *DefaultValidator) Validate(ctx context.Context, message *Message) error
 	errorMessages, err := v.va.Validate(ctx, message.Value)
 	if err != nil {
 		if v.LogError != nil {
-			v.LogError(ctx, "Validate error: " + err.Error())
+			v.LogError(ctx, "Validate error: "+err.Error())
 		}
 		return err
 	}
 	if len(errorMessages) > 0 {
-		m := fmt.Sprintf("invalid data: %v", errorMessages)
+		m := fmt.Sprintf("invalid data: %s", errorMessages)
 		if v.LogError != nil {
 			v.LogError(ctx, m)
 		}

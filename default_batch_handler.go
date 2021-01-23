@@ -11,8 +11,8 @@ type DefaultBatchHandler struct {
 	modelType   reflect.Type
 	modelsType  reflect.Type
 	batchWriter BatchWriter
-	LogError func(context.Context, string)
-	LogInfo  func(context.Context, string)
+	LogError    func(context.Context, string)
+	LogInfo     func(context.Context, string)
 }
 
 func NewBatchHandler(modelType reflect.Type, bulkWriter BatchWriter, logs ...func(context.Context, string)) *DefaultBatchHandler {
@@ -34,7 +34,7 @@ func (h *DefaultBatchHandler) Handle(ctx context.Context, data []*Message) ([]*M
 	for _, message := range data {
 		if message.Value != nil {
 			v = reflect.Append(v, reflect.ValueOf(message.Value))
-		} else  {
+		} else {
 			item := InitModel(h.modelType)
 			err := json.Unmarshal(message.Data, item)
 			if err != nil {
@@ -46,20 +46,32 @@ func (h *DefaultBatchHandler) Handle(ctx context.Context, data []*Message) ([]*M
 		}
 	}
 	if h.LogInfo != nil {
-		m := fmt.Sprintf(`models: %v`, v)
-		h.LogInfo(ctx, m)
+		sv, er0 := json.Marshal(v.Interface())
+		if er0 != nil {
+			m := fmt.Sprintf(`models: %s`, v)
+			h.LogInfo(ctx, m)
+		} else {
+			m := fmt.Sprintf(`models: %s`, sv)
+			h.LogInfo(ctx, m)
+		}
 	}
-	successIndices, failIndices, err := h.batchWriter.WriteBatch(ctx, v.Interface())
+	successIndices, failIndices, er1 := h.batchWriter.WriteBatch(ctx, v.Interface())
 	if h.LogInfo != nil {
 		m := fmt.Sprintf(`success indices %v fail indices %v`, successIndices, failIndices)
 		h.LogInfo(ctx, m)
 	}
-	if err != nil {
+	if er1 != nil {
 		if h.LogError != nil {
-			m := fmt.Sprintf("Can't do bulk write: %v  Error: %s", v.Interface(), err.Error())
-			h.LogError(ctx, m)
+			sv, er2 := json.Marshal(v.Interface())
+			if er2 != nil {
+				m := fmt.Sprintf("Can't do write batch: %s  Error: %s", v.Interface(), er1.Error())
+				h.LogError(ctx, m)
+			} else {
+				m := fmt.Sprintf("Can't do write batch: %s  Error: %s", sv, er1.Error())
+				h.LogError(ctx, m)
+			}
 		}
-		return data, err
+		return data, er1
 	}
 	for _, failIndex := range failIndices {
 		failMessages = append(failMessages, data[failIndex])
@@ -69,5 +81,5 @@ func (h *DefaultBatchHandler) Handle(ctx context.Context, data []*Message) ([]*M
 }
 
 func (h *DefaultBatchHandler) initModels() interface{} {
-	return 	reflect.New(h.modelsType).Interface()
+	return reflect.New(h.modelsType).Interface()
 }

@@ -48,27 +48,33 @@ func (h *MapBatchHandler) Handle(ctx context.Context, data []*Message) ([]*Messa
 		}
 	}
 	if h.LogInfo != nil {
-		m := fmt.Sprintf(`models: %v`, v)
-		h.LogInfo(ctx, m)
+		sv, er0 := json.Marshal(v.Interface())
+		if er0 != nil {
+			m := fmt.Sprintf(`models: %s`, v)
+			h.LogInfo(ctx, m)
+		} else {
+			m := fmt.Sprintf(`models: %s`, sv)
+			h.LogInfo(ctx, m)
+		}
 	}
-	modelMaps, er0 := h.ConvertToMaps(messagesByteData)
-	if er0 != nil {
+	modelMaps, er1 := h.ConvertToMaps(messagesByteData)
+	if er1 != nil {
 		if h.LogError != nil {
-			m := "error when converting to map: " + er0.Error()
+			m := "error when converting to map: " + er1.Error()
 			h.LogError(ctx, m)
 		}
 	}
-	successIndices, failIndices, er1 := h.batchWriter.WriteBatch(ctx, modelMaps)
+	successIndices, failIndices, er2 := h.batchWriter.WriteBatch(ctx, modelMaps)
 	if h.LogInfo != nil {
 		m := fmt.Sprintf(`success indices %v fail indices %v`, successIndices, failIndices)
 		h.LogInfo(ctx, m)
 	}
-	if er1 != nil {
+	if er2 != nil {
 		if h.LogError != nil {
-			m := fmt.Sprintf("Can't write batch: %v  Error: %s", v.Interface(), er1.Error())
+			m := fmt.Sprintf("Can't write batch: %s  Error: %s", v.Interface(), er2.Error())
 			h.LogError(ctx, m)
 		}
-		return data, er1
+		return data, er2
 	}
 	for _, failIndex := range failIndices {
 		failMessages = append(failMessages, data[failIndex])
