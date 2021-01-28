@@ -48,27 +48,22 @@ func (h *DefaultBatchHandler) Handle(ctx context.Context, data []*Message) ([]*M
 	if h.LogInfo != nil {
 		sv, er0 := json.Marshal(v.Interface())
 		if er0 != nil {
-			m := fmt.Sprintf(`models: %s`, v)
-			h.LogInfo(ctx, m)
+			h.LogInfo(ctx, fmt.Sprintf(`models: %s`, v))
 		} else {
-			m := fmt.Sprintf(`models: %s`, sv)
-			h.LogInfo(ctx, m)
+			h.LogInfo(ctx, fmt.Sprintf(`models: %s`, sv))
 		}
 	}
 	successIndices, failIndices, er1 := h.batchWriter.WriteBatch(ctx, v.Interface())
 	if h.LogInfo != nil {
-		m := fmt.Sprintf(`success indices %v fail indices %v`, successIndices, failIndices)
-		h.LogInfo(ctx, m)
+		h.LogInfo(ctx, fmt.Sprintf(`success indices %v fail indices %v`, successIndices, failIndices))
 	}
 	if er1 != nil {
 		if h.LogError != nil {
 			sv, er2 := json.Marshal(v.Interface())
 			if er2 != nil {
-				m := fmt.Sprintf("Can't do write batch: %s  Error: %s", v.Interface(), er1.Error())
-				h.LogError(ctx, m)
+				h.LogError(ctx, fmt.Sprintf("Can't do write batch: %s  Error: %s", v.Interface(), er1.Error()))
 			} else {
-				m := fmt.Sprintf("Can't do write batch: %s  Error: %s", sv, er1.Error())
-				h.LogError(ctx, m)
+				h.LogError(ctx, fmt.Sprintf("Can't do write batch: %s  Error: %s", sv, er1.Error()))
 			}
 		}
 		return data, er1

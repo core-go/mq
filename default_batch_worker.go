@@ -74,15 +74,13 @@ func (w *DefaultBatchWorker) OnConsume(ctx context.Context, message *Message) {
 func (w *DefaultBatchWorker) ready(ctx context.Context) bool {
 	isReady := false
 	now := time.Now()
-	timeoutStr := time.Duration(w.timeout) * time.Millisecond
 	batchSize := len(w.messages)
 	t := w.latestExecutedTime.Add(time.Duration(w.timeout) * time.Millisecond)
 	if batchSize > 0 && (batchSize >= w.batchSize || t.Sub(now) < 0) {
 		isReady = true
 	}
 	if isReady && w.LogInfo != nil {
-		m := fmt.Sprintf("Run: %d / %d - Next %s - Last %s - Timeout: %d", batchSize, w.batchSize, t.Format(TimeFormat), w.latestExecutedTime.Format(TimeFormat), timeoutStr)
-		w.LogInfo(ctx, m)
+		w.LogInfo(ctx, fmt.Sprintf("Run: %d / %d - Next %s - Last %s - Timeout: %d", batchSize, w.batchSize, t.Format(TimeFormat), w.latestExecutedTime.Format(TimeFormat), w.timeout))
 	}
 	return isReady
 }
@@ -97,16 +95,14 @@ func (w *DefaultBatchWorker) execute(ctx context.Context) {
 	errList, err := w.BatchHandler.Handle(ctx, w.messages)
 
 	if err != nil && w.LogError != nil {
-		m := "Error of Batch handling: " + err.Error()
-		w.LogError(ctx, m)
+		w.LogError(ctx, "Error of Batch handling: " + err.Error())
 	}
 	if errList != nil && len(errList) > 0 {
 		if w.RetryService == nil {
 			if w.LogError != nil {
 				l := len(errList)
 				for i := 0; i < l; i++ {
-					m := fmt.Sprintf("Error Message: %s.", errList[i])
-					w.LogError(ctx, m)
+					w.LogError(ctx, fmt.Sprintf("Error Message: %s.", errList[i]))
 				}
 			}
 		} else {
@@ -123,8 +119,7 @@ func (w *DefaultBatchWorker) execute(ctx context.Context) {
 
 				if retryCount > w.limitRetry {
 					if w.LogInfo != nil {
-						m := fmt.Sprintf("Retry: %d . Retry limitation: %d . Message: %s.", retryCount, w.limitRetry, errList[i])
-						w.LogInfo(ctx, m)
+						w.LogInfo(ctx, fmt.Sprintf("Retry: %d . Retry limitation: %d . Message: %s.", retryCount, w.limitRetry, errList[i]))
 					}
 					if w.ErrorHandler != nil {
 						w.ErrorHandler.HandleError(ctx, errList[i])
@@ -132,15 +127,13 @@ func (w *DefaultBatchWorker) execute(ctx context.Context) {
 					continue
 				} else {
 					if w.LogInfo != nil {
-						m := fmt.Sprintf("Retry: %d . Message: %s.", retryCount, errList[i])
-						w.LogInfo(ctx, m)
+						w.LogInfo(ctx, fmt.Sprintf("Retry: %d . Message: %s.", retryCount, errList[i]))
 					}
 				}
 				errList[i].Attributes[w.RetryCountName] = strconv.Itoa(retryCount)
 				er2 := w.RetryService.Retry(ctx, errList[i])
 				if er2 != nil && w.LogError != nil {
-					m := fmt.Sprintf("Cannot retry %s . Error: %s", errList[i], er2.Error())
-					w.LogError(ctx, m)
+					w.LogError(ctx, fmt.Sprintf("Cannot retry %s . Error: %s", errList[i], er2.Error()))
 				}
 			}
 		}

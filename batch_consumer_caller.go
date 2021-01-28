@@ -26,8 +26,7 @@ func NewBatchConsumerCaller(batchWorker BatchWorker, validator Validator, logs .
 func (c *BatchConsumerCaller) Call(ctx context.Context, message *Message, err error) error {
 	if err != nil {
 		if c.LogError != nil {
-			m := fmt.Sprintf("Processing message error: %s", err.Error())
-			c.LogError(ctx, m)
+			c.LogError(ctx, fmt.Sprintf("Processing message error: %s", err.Error()))
 		}
 		return err
 	} else if message == nil {
@@ -40,8 +39,7 @@ func (c *BatchConsumerCaller) Call(ctx context.Context, message *Message, err er
 		er2 := c.Validator.Validate(ctx, message)
 		if er2 != nil {
 			if c.LogError != nil {
-				m := fmt.Sprintf("Message is invalid: %s  Error: %s", message, er2.Error())
-				c.LogError(ctx, m)
+				c.LogError(ctx, fmt.Sprintf("Message is invalid: %s  Error: %s", message, er2.Error()))
 			}
 			return er2
 		}

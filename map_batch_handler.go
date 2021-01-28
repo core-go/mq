@@ -50,29 +50,24 @@ func (h *MapBatchHandler) Handle(ctx context.Context, data []*Message) ([]*Messa
 	if h.LogInfo != nil {
 		sv, er0 := json.Marshal(v.Interface())
 		if er0 != nil {
-			m := fmt.Sprintf(`models: %s`, v)
-			h.LogInfo(ctx, m)
+			h.LogInfo(ctx, fmt.Sprintf(`models: %s`, v))
 		} else {
-			m := fmt.Sprintf(`models: %s`, sv)
-			h.LogInfo(ctx, m)
+			h.LogInfo(ctx, fmt.Sprintf(`models: %s`, sv))
 		}
 	}
 	modelMaps, er1 := h.ConvertToMaps(messagesByteData)
 	if er1 != nil {
 		if h.LogError != nil {
-			m := "error when converting to map: " + er1.Error()
-			h.LogError(ctx, m)
+			h.LogError(ctx, "error when converting to map: " + er1.Error())
 		}
 	}
 	successIndices, failIndices, er2 := h.batchWriter.WriteBatch(ctx, modelMaps)
 	if h.LogInfo != nil {
-		m := fmt.Sprintf(`success indices %v fail indices %v`, successIndices, failIndices)
-		h.LogInfo(ctx, m)
+		h.LogInfo(ctx, fmt.Sprintf(`success indices %v fail indices %v`, successIndices, failIndices))
 	}
 	if er2 != nil {
 		if h.LogError != nil {
-			m := fmt.Sprintf("Can't write batch: %s  Error: %s", v.Interface(), er2.Error())
-			h.LogError(ctx, m)
+			h.LogError(ctx, fmt.Sprintf("Can't write batch: %s  Error: %s", v.Interface(), er2.Error()))
 		}
 		return data, er2
 	}
