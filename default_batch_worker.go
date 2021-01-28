@@ -39,7 +39,7 @@ func NewBatchWorker(batchSize int, timeout int64, limitRetry int, repository Bat
 		retryCountName = "retryCount"
 	}
 	if errorHandler == nil {
-		errorHandler = NewErrorHandler()
+		errorHandler = NewErrorHandler(logs...)
 	}
 	w := &DefaultBatchWorker{
 		batchSize:      batchSize,
@@ -108,18 +108,21 @@ func (w *DefaultBatchWorker) execute(ctx context.Context) {
 		} else {
 			l := len(errList)
 			for i := 0; i < l; i++ {
+				retryCount := 0
 				if errList[i].Attributes == nil {
-					errList[i].Attributes = map[string]string{}
-				}
-				retryCount, err := strconv.Atoi(errList[i].Attributes[w.RetryCountName])
-				if err != nil {
-					retryCount = 1
+					errList[i].Attributes = make(map[string]string)
+				} else {
+					var er4 error
+					retryCount, er4 = strconv.Atoi(errList[i].Attributes[w.RetryCountName])
+					if er4  != nil {
+						retryCount = 1
+					}
 				}
 				retryCount++
-
 				if retryCount > w.limitRetry {
 					if w.LogInfo != nil {
-						w.LogInfo(ctx, fmt.Sprintf("Retry: %d . Retry limitation: %d . Message: %s.", retryCount, w.limitRetry, errList[i]))
+						l := logMessage{Id: errList[i].Id, Data: errList[i].Data, Attributes: errList[i].Attributes}
+						w.LogInfo(ctx, fmt.Sprintf("Retry: %d . Retry limitation: %d . Message: %s.", retryCount, w.limitRetry, l))
 					}
 					if w.ErrorHandler != nil {
 						w.ErrorHandler.HandleError(ctx, errList[i])
@@ -127,13 +130,14 @@ func (w *DefaultBatchWorker) execute(ctx context.Context) {
 					continue
 				} else {
 					if w.LogInfo != nil {
-						w.LogInfo(ctx, fmt.Sprintf("Retry: %d . Message: %s.", retryCount, errList[i]))
+						l := logMessage{Id: errList[i].Id, Data: errList[i].Data, Attributes: errList[i].Attributes}
+						w.LogInfo(ctx, fmt.Sprintf("Retry: %d . Message: %s.", retryCount, l))
 					}
 				}
 				errList[i].Attributes[w.RetryCountName] = strconv.Itoa(retryCount)
-				er2 := w.RetryService.Retry(ctx, errList[i])
-				if er2 != nil && w.LogError != nil {
-					w.LogError(ctx, fmt.Sprintf("Cannot retry %s . Error: %s", errList[i], er2.Error()))
+				er3 := w.RetryService.Retry(ctx, errList[i])
+				if er3 != nil && w.LogError != nil {
+					w.LogError(ctx, fmt.Sprintf("Cannot retry %s . Error: %s", errList[i], er3.Error()))
 				}
 			}
 		}

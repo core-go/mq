@@ -31,6 +31,16 @@ type DefaultConsumerCaller struct {
 func NewConsumerCallerByConfig(c ConsumerConfig, modelType reflect.Type, writer Writer, retryService RetryService, validator Validator, errorHandler ErrorHandler, logs ...func(context.Context, string)) *DefaultConsumerCaller {
 	return NewConsumerCallerWithRetryService(modelType, writer, c.LimitRetry, retryService, c.RetryCountName, validator, errorHandler, c.Goroutines, logs...)
 }
+func NewConsumerCallerWithRetryConfig(modelType reflect.Type, writer Writer, validator Validator, c *RetryConfig, goroutines bool, logs ...func(context.Context, string)) *DefaultConsumerCaller {
+	if c == nil {
+		return NewConsumerCallerWithRetries(modelType, writer, validator, nil, goroutines, logs...)
+	}
+	retries := DurationsFromValue(*c, "Retry", 20)
+	if len(retries) == 0 {
+		return NewConsumerCallerWithRetries(modelType, writer, validator, nil, goroutines, logs...)
+	}
+	return NewConsumerCallerWithRetries(modelType, writer, validator, retries, goroutines, logs...)
+}
 func NewConsumerCallerWithRetries(modelType reflect.Type, writer Writer, validator Validator, retries []time.Duration, goroutines bool, logs ...func(context.Context, string)) *DefaultConsumerCaller {
 	c := &DefaultConsumerCaller{
 		ModelType:    modelType,
@@ -57,7 +67,7 @@ func NewConsumerCallerWithRetryService(modelType reflect.Type, writer Writer, li
 		retryCountName = "retryCount"
 	}
 	if retryService != nil && errorHandler == nil {
-		errorHandler = NewErrorHandler()
+		errorHandler = NewErrorHandler(logs...)
 	}
 	c := &DefaultConsumerCaller{
 		ModelType:      modelType,
@@ -78,14 +88,6 @@ func NewConsumerCallerWithRetryService(modelType reflect.Type, writer Writer, li
 	return c
 }
 
-func MakeDurations(vs []int64) []time.Duration {
-	durations := make([]time.Duration, 0)
-	for _, v := range vs {
-		d := time.Duration(v) * time.Second
-		durations = append(durations, d)
-	}
-	return durations
-}
 func (c *DefaultConsumerCaller) Call(ctx context.Context, message *Message, err error) error {
 	if err != nil {
 		if c.LogError != nil {
@@ -137,12 +139,12 @@ func (c *DefaultConsumerCaller) write(ctx context.Context, message *Message, ite
 				i = i + 1
 				er2 := c.Writer.Write(ctx, item)
 				if er2 == nil && c.LogError != nil {
-					c.LogError(ctx, fmt.Sprintf("Write successfully after %d retries %s", i, string(message.Data)))
+					c.LogError(ctx, fmt.Sprintf("Write successfully after %d retries %s", i, message.Data))
 				}
 				return er2
 			}, c.LogError)
 			if err != nil && c.LogError != nil {
-				c.LogError(ctx, fmt.Sprintf("Failed to write: %s. Error: %s.", string(message.Data), er1.Error()))
+				c.LogError(ctx, fmt.Sprintf("Failed to write after %d retries: %s. Error: %s.", len(*c.Retries), message.Data, er1.Error()))
 			}
 			return err
 		}
@@ -152,29 +154,36 @@ func (c *DefaultConsumerCaller) write(ctx context.Context, message *Message, ite
 		if er3 == nil {
 			return er3
 		}
-		c.LogError(ctx, er3.Error())
+		c.LogError(ctx, fmt.Sprintf("Fail to write %s . Error: %s", message.Data, er3.Error()))
 		if c.RetryService == nil {
 			if c.ErrorHandler != nil {
 				c.ErrorHandler.HandleError(ctx, message)
 			}
 			return er3
 		}
-
-		retryCount, err := strconv.Atoi(message.Attributes[c.RetryCountName])
-		if err != nil {
-			retryCount = 1
+		retryCount := 0
+		if message.Attributes == nil {
+			message.Attributes = make(map[string]string)
+		} else {
+			var er4 error
+			retryCount, er4 = strconv.Atoi(message.Attributes[c.RetryCountName])
+			if er4 != nil {
+				retryCount = 0
+			}
 		}
 		retryCount++
 		if retryCount > c.LimitRetry {
 			if c.LogInfo != nil {
-				c.LogInfo(ctx, fmt.Sprintf("Retry: %d . Retry limitation: %d . Message: %s.", retryCount, c.LimitRetry, message))
+				l := logMessage{Id: message.Id, Data: message.Data, Attributes: message.Attributes}
+				c.LogInfo(ctx, fmt.Sprintf("Retry: %d . Retry limitation: %d . Message: %s.", retryCount, c.LimitRetry, l))
 			}
 			if c.ErrorHandler != nil {
 				c.ErrorHandler.HandleError(ctx, message)
 			}
 		} else {
 			if c.LogInfo != nil {
-				c.LogInfo(ctx, fmt.Sprintf("Retry: %d . Message: %s.", retryCount, message))
+				l := logMessage{Id: message.Id, Data: message.Data, Attributes: message.Attributes}
+				c.LogInfo(ctx, fmt.Sprintf("Retry: %d . Message: %s.", retryCount, l))
 			}
 			message.Attributes[c.RetryCountName] = strconv.Itoa(retryCount)
 			er2 := c.RetryService.Retry(ctx, message)

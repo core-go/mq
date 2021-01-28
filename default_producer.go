@@ -13,6 +13,17 @@ type DefaultProducer struct {
 	Goroutines bool
 }
 
+func NewProducerByConfig(producer Producer, goroutines bool, log func(context.Context, string), c *RetryConfig) *DefaultProducer {
+	if c == nil {
+		return &DefaultProducer{Producer: producer, Log: log, Goroutines: goroutines}
+	} else {
+		retries := DurationsFromValue(*c, "Retry", 20)
+		if len(retries) == 0 {
+			return &DefaultProducer{Producer: producer, Log: log, Goroutines: goroutines}
+		}
+		return &DefaultProducer{Producer: producer, Log: log, Retries: retries, Goroutines: goroutines}
+	}
+}
 func NewProducer(producer Producer, goroutines bool, log func(context.Context, string), retries ...time.Duration) *DefaultProducer {
 	return &DefaultProducer{Producer: producer, Log: log, Retries: retries, Goroutines: goroutines}
 }
@@ -49,7 +60,7 @@ func ProduceWithRetries(ctx context.Context, producer Producer, data []byte, att
 		return er2
 	}, log)
 	if err != nil && log != nil {
-		log(ctx, fmt.Sprintf("Failed to produce: %s. Error: %s.", data, err.Error()))
+		log(ctx, fmt.Sprintf("Failed to produce after %d retries: %s. Error: %s.", len(retries), data, err.Error()))
 	}
 	return id, err
 }
