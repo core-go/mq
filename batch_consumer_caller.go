@@ -33,13 +33,14 @@ func (c *BatchConsumerCaller) Call(ctx context.Context, message *Message, err er
 		return nil
 	}
 	if c.LogInfo != nil {
-		c.LogInfo(ctx, "Received message: "+string(message.Data))
+		c.LogInfo(ctx, fmt.Sprintf("Received message: %s", message.Data))
 	}
 	if c.Validator != nil {
 		er2 := c.Validator.Validate(ctx, message)
 		if er2 != nil {
 			if c.LogError != nil {
-				c.LogError(ctx, fmt.Sprintf("Message is invalid: %s  Error: %s", message, er2.Error()))
+				l := logMessage{Id: message.Id, Data: message.Data, Attributes: message.Attributes}
+				c.LogError(ctx, fmt.Sprintf("Message is invalid: %s . Error: %s", l, er2.Error()))
 			}
 			return er2
 		}
