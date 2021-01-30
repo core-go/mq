@@ -22,10 +22,10 @@ func NewMqRetryService(producer Producer, logs ...func(context.Context, string))
 }
 
 func (s *MqRetryService) Retry(ctx context.Context, message *Message) error {
-	_, err := s.Producer.Produce(ctx, message.Data, &message.Attributes)
+	_, err := s.Producer.Produce(ctx, message.Data, message.Attributes)
 	if err != nil {
 		if s.LogError != nil {
-			s.LogError(ctx, `Retry put to mq error: ` + err.Error())
+			s.LogError(ctx, `Retry put to mq error: `+err.Error())
 		}
 	} else if s.LogInfo != nil {
 		s.LogInfo(ctx, `Retry put to mq success.`)

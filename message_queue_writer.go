@@ -23,7 +23,7 @@ func (w *MessageQueueWriter) Write(ctx context.Context, model interface{}) error
 	}
 	msg := GetMessageFromContext(ctx)
 	if msg != nil && len(msg.Attributes) > 0 {
-		_, er2 := w.producer.Produce(ctx, data, &msg.Attributes)
+		_, er2 := w.producer.Produce(ctx, data, msg.Attributes)
 		return er2
 	} else {
 		_, er2 := w.producer.Produce(ctx, data, nil)

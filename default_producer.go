@@ -27,7 +27,7 @@ func NewProducerByConfig(producer Producer, goroutines bool, log func(context.Co
 func NewProducer(producer Producer, goroutines bool, log func(context.Context, string), retries ...time.Duration) *DefaultProducer {
 	return &DefaultProducer{Producer: producer, Log: log, Retries: retries, Goroutines: goroutines}
 }
-func (c *DefaultProducer) Produce(ctx context.Context, data []byte, attributes *map[string]string) (string, error) {
+func (c *DefaultProducer) Produce(ctx context.Context, data []byte, attributes map[string]string) (string, error) {
 	if !c.Goroutines {
 		return Produce(ctx, c.Producer, data, attributes, c.Log, c.Retries...)
 	} else {
@@ -35,7 +35,7 @@ func (c *DefaultProducer) Produce(ctx context.Context, data []byte, attributes *
 		return "", nil
 	}
 }
-func Produce(ctx context.Context, producer Producer, data []byte, attributes *map[string]string, log func(context.Context, string), retries ...time.Duration) (string, error) {
+func Produce(ctx context.Context, producer Producer, data []byte, attributes map[string]string, log func(context.Context, string), retries ...time.Duration) (string, error) {
 	l := len(retries)
 	if l == 0 {
 		return producer.Produce(ctx, data, attributes)
@@ -44,7 +44,7 @@ func Produce(ctx context.Context, producer Producer, data []byte, attributes *ma
 	}
 }
 
-func ProduceWithRetries(ctx context.Context, producer Producer, data []byte, attributes *map[string]string, retries []time.Duration, log func(context.Context, string)) (string, error) {
+func ProduceWithRetries(ctx context.Context, producer Producer, data []byte, attributes map[string]string, retries []time.Duration, log func(context.Context, string)) (string, error) {
 	id, er1 := producer.Produce(ctx, data, attributes)
 	if er1 == nil {
 		return id, er1

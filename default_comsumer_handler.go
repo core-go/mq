@@ -14,7 +14,7 @@ type ConsumerConfig struct {
 	LimitRetry     int    `mapstructure:"limit_retry"`
 	Goroutines     bool   `mapstructure:"goroutines"`
 }
-type DefaultConsumerCaller struct {
+type DefaultConsumerHandler struct {
 	ModelType      reflect.Type
 	Validator      Validator
 	Writer         Writer
@@ -28,26 +28,26 @@ type DefaultConsumerCaller struct {
 	LogInfo        func(context.Context, string)
 }
 
-func NewConsumerCallerByConfig(c ConsumerConfig, modelType reflect.Type, writer Writer, retryService RetryService, validator Validator, errorHandler ErrorHandler, logs ...func(context.Context, string)) *DefaultConsumerCaller {
-	return NewConsumerCallerWithRetryService(modelType, writer, c.LimitRetry, retryService, c.RetryCountName, validator, errorHandler, c.Goroutines, logs...)
+func NewConsumerHandlerByConfig(c ConsumerConfig, modelType reflect.Type, writer Writer, retryService RetryService, validator Validator, errorHandler ErrorHandler, logs ...func(context.Context, string)) *DefaultConsumerHandler {
+	return NewConsumerHandlerWithRetryService(modelType, writer, c.LimitRetry, retryService, c.RetryCountName, validator, errorHandler, c.Goroutines, logs...)
 }
-func NewConsumerCallerWithRetryConfig(modelType reflect.Type, writer Writer, validator Validator, c *RetryConfig, goroutines bool, logs ...func(context.Context, string)) *DefaultConsumerCaller {
+func NewConsumerHandlerWithRetryConfig(modelType reflect.Type, writer Writer, validator Validator, c *RetryConfig, goroutines bool, logs ...func(context.Context, string)) *DefaultConsumerHandler {
 	if c == nil {
-		return NewConsumerCallerWithRetries(modelType, writer, validator, nil, goroutines, logs...)
+		return NewConsumerHandlerWithRetries(modelType, writer, validator, nil, goroutines, logs...)
 	}
 	retries := DurationsFromValue(*c, "Retry", 20)
 	if len(retries) == 0 {
-		return NewConsumerCallerWithRetries(modelType, writer, validator, nil, goroutines, logs...)
+		return NewConsumerHandlerWithRetries(modelType, writer, validator, nil, goroutines, logs...)
 	}
-	return NewConsumerCallerWithRetries(modelType, writer, validator, retries, goroutines, logs...)
+	return NewConsumerHandlerWithRetries(modelType, writer, validator, retries, goroutines, logs...)
 }
-func NewConsumerCallerWithRetries(modelType reflect.Type, writer Writer, validator Validator, retries []time.Duration, goroutines bool, logs ...func(context.Context, string)) *DefaultConsumerCaller {
-	c := &DefaultConsumerCaller{
-		ModelType:    modelType,
-		Writer:       writer,
-		Validator:    validator,
-		Retries:      &retries,
-		Goroutines:   goroutines,
+func NewConsumerHandlerWithRetries(modelType reflect.Type, writer Writer, validator Validator, retries []time.Duration, goroutines bool, logs ...func(context.Context, string)) *DefaultConsumerHandler {
+	c := &DefaultConsumerHandler{
+		ModelType:  modelType,
+		Writer:     writer,
+		Validator:  validator,
+		Retries:    &retries,
+		Goroutines: goroutines,
 	}
 	if len(logs) >= 1 {
 		c.LogError = logs[0]
@@ -57,19 +57,19 @@ func NewConsumerCallerWithRetries(modelType reflect.Type, writer Writer, validat
 	}
 	return c
 }
-func NewConsumerCaller(modelType reflect.Type, writer Writer, validator Validator, goroutines bool, logs ...func(context.Context, string)) *DefaultConsumerCaller {
-	return NewConsumerCallerWithRetryService(modelType, writer, -1, nil, "", validator, nil, goroutines, logs...)
+func NewConsumerHandler(modelType reflect.Type, writer Writer, validator Validator, goroutines bool, logs ...func(context.Context, string)) *DefaultConsumerHandler {
+	return NewConsumerHandlerWithRetryService(modelType, writer, -1, nil, "", validator, nil, goroutines, logs...)
 }
-func NewConsumerCallerWithRetryService(modelType reflect.Type, writer Writer, limitRetry int, retryService RetryService, retryCountName string, validator Validator,
+func NewConsumerHandlerWithRetryService(modelType reflect.Type, writer Writer, limitRetry int, retryService RetryService, retryCountName string, validator Validator,
 	errorHandler ErrorHandler,
-	goroutines bool, logs ...func(context.Context, string)) *DefaultConsumerCaller {
+	goroutines bool, logs ...func(context.Context, string)) *DefaultConsumerHandler {
 	if len(retryCountName) == 0 {
 		retryCountName = "retryCount"
 	}
 	if retryService != nil && errorHandler == nil {
 		errorHandler = NewErrorHandler(logs...)
 	}
-	c := &DefaultConsumerCaller{
+	c := &DefaultConsumerHandler{
 		ModelType:      modelType,
 		Writer:         writer,
 		Validator:      validator,
@@ -88,10 +88,10 @@ func NewConsumerCallerWithRetryService(modelType reflect.Type, writer Writer, li
 	return c
 }
 
-func (c *DefaultConsumerCaller) Call(ctx context.Context, message *Message, err error) error {
+func (c *DefaultConsumerHandler) Handle(ctx context.Context, message *Message, err error) error {
 	if err != nil {
 		if c.LogError != nil {
-			c.LogError(ctx, "Processing message error: " + err.Error())
+			c.LogError(ctx, "Processing message error: "+err.Error())
 		}
 		return err
 	} else if message == nil {
@@ -117,7 +117,7 @@ func (c *DefaultConsumerCaller) Call(ctx context.Context, message *Message, err 
 		er1 := json.Unmarshal(message.Data, v)
 		if er1 != nil {
 			if c.LogError != nil {
-				c.LogError(ctx, fmt.Sprintf(`can't unmarshal item: %s. Error: %s`, string(message.Data), er1.Error()))
+				c.LogError(ctx, fmt.Sprintf(`cannot unmarshal item: %s. Error: %s`, message.Data, er1.Error()))
 			}
 			return nil
 		}
@@ -131,7 +131,7 @@ func (c *DefaultConsumerCaller) Call(ctx context.Context, message *Message, err 
 	}
 }
 
-func (c *DefaultConsumerCaller) write(ctx context.Context, message *Message, item interface{}) error {
+func (c *DefaultConsumerHandler) write(ctx context.Context, message *Message, item interface{}) error {
 	ctx = context.WithValue(ctx, "message", message)
 	if c.RetryService == nil && c.Retries != nil && len(*c.Retries) > 0 {
 		if er1 := c.Writer.Write(ctx, item); er1 != nil {

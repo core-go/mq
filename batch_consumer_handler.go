@@ -5,15 +5,15 @@ import (
 	"fmt"
 )
 
-type BatchConsumerCaller struct {
+type BatchConsumerHandler struct {
 	BatchWorker BatchWorker
 	Validator   Validator
 	LogError    func(context.Context, string)
 	LogInfo     func(context.Context, string)
 }
 
-func NewBatchConsumerCaller(batchWorker BatchWorker, validator Validator, logs ...func(context.Context, string)) *BatchConsumerCaller {
-	b := BatchConsumerCaller{BatchWorker: batchWorker, Validator: validator}
+func NewBatchConsumerHandler(batchWorker BatchWorker, validator Validator, logs ...func(context.Context, string)) *BatchConsumerHandler {
+	b := BatchConsumerHandler{BatchWorker: batchWorker, Validator: validator}
 	if len(logs) >= 1 {
 		b.LogError = logs[0]
 	}
@@ -23,7 +23,7 @@ func NewBatchConsumerCaller(batchWorker BatchWorker, validator Validator, logs .
 	return &b
 }
 
-func (c *BatchConsumerCaller) Call(ctx context.Context, message *Message, err error) error {
+func (c *BatchConsumerHandler) Handle(ctx context.Context, message *Message, err error) error {
 	if err != nil {
 		if c.LogError != nil {
 			c.LogError(ctx, fmt.Sprintf("Processing message error: %s", err.Error()))

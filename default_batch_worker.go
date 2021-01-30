@@ -95,14 +95,15 @@ func (w *DefaultBatchWorker) execute(ctx context.Context) {
 	errList, err := w.BatchHandler.Handle(ctx, w.messages)
 
 	if err != nil && w.LogError != nil {
-		w.LogError(ctx, "Error of Batch handling: " + err.Error())
+		w.LogError(ctx, "Error of batch handling: "+err.Error())
 	}
 	if errList != nil && len(errList) > 0 {
 		if w.RetryService == nil {
 			if w.LogError != nil {
 				l := len(errList)
 				for i := 0; i < l; i++ {
-					w.LogError(ctx, fmt.Sprintf("Error Message: %s.", errList[i]))
+					l := logMessage{Id: errList[i].Id, Data: errList[i].Data, Attributes: errList[i].Attributes}
+					w.LogError(ctx, fmt.Sprintf("Error message: %s.", l))
 				}
 			}
 		} else {
@@ -114,7 +115,7 @@ func (w *DefaultBatchWorker) execute(ctx context.Context) {
 				} else {
 					var er4 error
 					retryCount, er4 = strconv.Atoi(errList[i].Attributes[w.RetryCountName])
-					if er4  != nil {
+					if er4 != nil {
 						retryCount = 1
 					}
 				}
@@ -137,7 +138,8 @@ func (w *DefaultBatchWorker) execute(ctx context.Context) {
 				errList[i].Attributes[w.RetryCountName] = strconv.Itoa(retryCount)
 				er3 := w.RetryService.Retry(ctx, errList[i])
 				if er3 != nil && w.LogError != nil {
-					w.LogError(ctx, fmt.Sprintf("Cannot retry %s . Error: %s", errList[i], er3.Error()))
+					l := logMessage{Id: errList[i].Id, Data: errList[i].Data, Attributes: errList[i].Attributes}
+					w.LogError(ctx, fmt.Sprintf("Cannot retry %s . Error: %s", l, er3.Error()))
 				}
 			}
 		}

@@ -26,7 +26,7 @@ func (v *DefaultValidator) Validate(ctx context.Context, message *Message) error
 	item := InitModel(v.modelType)
 	err := json.Unmarshal(message.Data, item)
 	if err != nil {
-		return fmt.Errorf(`can't unmarshal item: %s. Error: %s`, string(message.Data), err.Error())
+		return fmt.Errorf(`cannot unmarshal item: %s. Error: %s`, message.Data, err.Error())
 	}
 	message.Value = reflect.Indirect(reflect.ValueOf(item)).Interface()
 	errorMessages, err := v.va.Validate(ctx, message.Value)

@@ -39,7 +39,7 @@ func (h *DefaultBatchHandler) Handle(ctx context.Context, data []*Message) ([]*M
 			err := json.Unmarshal(message.Data, item)
 			if err != nil {
 				failMessages = append(failMessages, message)
-				return failMessages, fmt.Errorf(`can't unmarshal item: %s. Error: %s`, string(message.Data), err.Error())
+				return failMessages, fmt.Errorf(`cannot unmarshal item: %s. Error: %s`, message.Data, err.Error())
 			}
 			x := reflect.Indirect(reflect.ValueOf(item)).Interface()
 			v = reflect.Append(v, reflect.ValueOf(x))
@@ -61,9 +61,9 @@ func (h *DefaultBatchHandler) Handle(ctx context.Context, data []*Message) ([]*M
 		if h.LogError != nil {
 			sv, er2 := json.Marshal(v.Interface())
 			if er2 != nil {
-				h.LogError(ctx, fmt.Sprintf("Can't do write batch: %s  Error: %s", v.Interface(), er1.Error()))
+				h.LogError(ctx, fmt.Sprintf("Cannot write batch: %s  Error: %s", v.Interface(), er1.Error()))
 			} else {
-				h.LogError(ctx, fmt.Sprintf("Can't do write batch: %s  Error: %s", sv, er1.Error()))
+				h.LogError(ctx, fmt.Sprintf("Cannot write batch: %s  Error: %s", sv, er1.Error()))
 			}
 		}
 		return data, er1

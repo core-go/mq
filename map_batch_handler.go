@@ -58,7 +58,7 @@ func (h *MapBatchHandler) Handle(ctx context.Context, data []*Message) ([]*Messa
 	modelMaps, er1 := h.ConvertToMaps(messagesByteData)
 	if er1 != nil {
 		if h.LogError != nil {
-			h.LogError(ctx, "error when converting to map: " + er1.Error())
+			h.LogError(ctx, "error when converting to map: "+er1.Error())
 		}
 	}
 	successIndices, failIndices, er2 := h.batchWriter.WriteBatch(ctx, modelMaps)
@@ -67,7 +67,7 @@ func (h *MapBatchHandler) Handle(ctx context.Context, data []*Message) ([]*Messa
 	}
 	if er2 != nil {
 		if h.LogError != nil {
-			h.LogError(ctx, fmt.Sprintf("Can't write batch: %s  Error: %s", v.Interface(), er2.Error()))
+			h.LogError(ctx, fmt.Sprintf("Cannot write batch: %s  Error: %s", v.Interface(), er2.Error()))
 		}
 		return data, er2
 	}

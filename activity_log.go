@@ -112,7 +112,7 @@ func BuildExt(ctx context.Context, keys *[]string) map[string]interface{} {
 	}
 	return headers
 }
-func BuildHeader(ctx context.Context, keys *[]string) *map[string]string {
+func BuildHeader(ctx context.Context, keys *[]string) map[string]string {
 	if keys != nil {
 		headers := make(map[string]string)
 		hs := *keys
@@ -126,7 +126,7 @@ func BuildHeader(ctx context.Context, keys *[]string) *map[string]string {
 			}
 		}
 		if len(headers) > 0 {
-			return &headers
+			return headers
 		} else {
 			return nil
 		}
