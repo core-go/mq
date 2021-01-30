@@ -46,8 +46,10 @@ func NewConsumerHandlerWithRetries(modelType reflect.Type, writer Writer, valida
 		ModelType:  modelType,
 		Writer:     writer,
 		Validator:  validator,
-		Retries:    &retries,
 		Goroutines: goroutines,
+	}
+	if retries != nil {
+		c.Retries = &retries
 	}
 	if len(logs) >= 1 {
 		c.LogError = logs[0]
