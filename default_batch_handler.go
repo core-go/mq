@@ -57,22 +57,23 @@ func (h *DefaultBatchHandler) Handle(ctx context.Context, data []*Message) ([]*M
 	if h.LogInfo != nil {
 		h.LogInfo(ctx, fmt.Sprintf(`success indices %v fail indices %v`, successIndices, failIndices))
 	}
-	if er1 != nil {
-		if h.LogError != nil {
-			sv, er2 := json.Marshal(v.Interface())
-			if er2 != nil {
-				h.LogError(ctx, fmt.Sprintf("Cannot write batch: %s  Error: %s", v.Interface(), er1.Error()))
-			} else {
-				h.LogError(ctx, fmt.Sprintf("Cannot write batch: %s  Error: %s", sv, er1.Error()))
+	if successIndices != nil && len(successIndices) > 0 {
+		if failIndices != nil && len(failIndices) > 0 {
+			for _, failIndex := range failIndices {
+				failMessages = append(failMessages, data[failIndex])
 			}
 		}
-		return data, er1
+		return failMessages, nil
 	}
-	for _, failIndex := range failIndices {
-		failMessages = append(failMessages, data[failIndex])
+	if er1 != nil && h.LogError != nil {
+		sv, er2 := json.Marshal(v.Interface())
+		if er2 != nil {
+			h.LogError(ctx, fmt.Sprintf("Cannot write batch: %s  Error: %s", v.Interface(), er1.Error()))
+		} else {
+			h.LogError(ctx, fmt.Sprintf("Cannot write batch: %s  Error: %s", sv, er1.Error()))
+		}
 	}
-
-	return failMessages, nil
+	return data, er1
 }
 
 func (h *DefaultBatchHandler) initModels() interface{} {

@@ -102,8 +102,8 @@ func (w *DefaultBatchWorker) execute(ctx context.Context) {
 			if w.LogError != nil {
 				l := len(errList)
 				for i := 0; i < l; i++ {
-					l := logMessage{Id: errList[i].Id, Data: errList[i].Data, Attributes: errList[i].Attributes}
-					w.LogError(ctx, fmt.Sprintf("Error message: %s.", l))
+					x := logMessage{Id: errList[i].Id, Data: errList[i].Data, Attributes: errList[i].Attributes}
+					w.LogError(ctx, fmt.Sprintf("Error message: %s.", x))
 				}
 			}
 		} else {
@@ -122,8 +122,8 @@ func (w *DefaultBatchWorker) execute(ctx context.Context) {
 				retryCount++
 				if retryCount > w.limitRetry {
 					if w.LogInfo != nil {
-						l := logMessage{Id: errList[i].Id, Data: errList[i].Data, Attributes: errList[i].Attributes}
-						w.LogInfo(ctx, fmt.Sprintf("Retry: %d . Retry limitation: %d . Message: %s.", retryCount, w.limitRetry, l))
+						x := logMessage{Id: errList[i].Id, Data: errList[i].Data, Attributes: errList[i].Attributes}
+						w.LogInfo(ctx, fmt.Sprintf("Retry: %d . Retry limitation: %d . Message: %s.", retryCount, w.limitRetry, x))
 					}
 					if w.ErrorHandler != nil {
 						w.ErrorHandler.HandleError(ctx, errList[i])
@@ -131,15 +131,15 @@ func (w *DefaultBatchWorker) execute(ctx context.Context) {
 					continue
 				} else {
 					if w.LogInfo != nil {
-						l := logMessage{Id: errList[i].Id, Data: errList[i].Data, Attributes: errList[i].Attributes}
-						w.LogInfo(ctx, fmt.Sprintf("Retry: %d . Message: %s.", retryCount, l))
+						x := logMessage{Id: errList[i].Id, Data: errList[i].Data, Attributes: errList[i].Attributes}
+						w.LogInfo(ctx, fmt.Sprintf("Retry: %d . Message: %s.", retryCount, x))
 					}
 				}
 				errList[i].Attributes[w.RetryCountName] = strconv.Itoa(retryCount)
 				er3 := w.RetryService.Retry(ctx, errList[i])
 				if er3 != nil && w.LogError != nil {
-					l := logMessage{Id: errList[i].Id, Data: errList[i].Data, Attributes: errList[i].Attributes}
-					w.LogError(ctx, fmt.Sprintf("Cannot retry %s . Error: %s", l, er3.Error()))
+					x := logMessage{Id: errList[i].Id, Data: errList[i].Data, Attributes: errList[i].Attributes}
+					w.LogError(ctx, fmt.Sprintf("Cannot retry %s . Error: %s", x, er3.Error()))
 				}
 			}
 		}
