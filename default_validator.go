@@ -10,12 +10,12 @@ import (
 
 type DefaultValidator struct {
 	modelType reflect.Type
-	va        validator.Validator
+	validate  func(ctx context.Context, model interface{}) ([]validator.ErrorMessage, error)
 	LogError  func(context.Context, string)
 }
 
-func NewValidator(modelType reflect.Type, va validator.Validator, logError ...func(context.Context, string)) *DefaultValidator {
-	v := &DefaultValidator{modelType: modelType, va: va}
+func NewValidator(modelType reflect.Type, validate func(context.Context, interface{}) ([]validator.ErrorMessage, error), logError ...func(context.Context, string)) *DefaultValidator {
+	v := &DefaultValidator{modelType: modelType, validate: validate}
 	if len(logError) >= 1 {
 		v.LogError = logError[0]
 	}
@@ -29,7 +29,7 @@ func (v *DefaultValidator) Validate(ctx context.Context, message *Message) error
 		return fmt.Errorf(`cannot unmarshal item: %s. Error: %s`, message.Data, err.Error())
 	}
 	message.Value = reflect.Indirect(reflect.ValueOf(item)).Interface()
-	errorMessages, err := v.va.Validate(ctx, message.Value)
+	errorMessages, err := v.validate(ctx, message.Value)
 	if err != nil {
 		if v.LogError != nil {
 			v.LogError(ctx, "Validate error: "+err.Error())
