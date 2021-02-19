@@ -19,15 +19,15 @@ type MapBatchHandler struct {
 	LogInfo      func(context.Context, string)
 	modelType    reflect.Type
 	modelsType   reflect.Type
-	batchWriter  MapsWriter
+	Write        func(ctx context.Context, models []map[string]interface{}) ([]int, []int, error) // Return: Success indices, Fail indices, Error
 	mapJsonIndex map[string]TagName
 }
 
-func NewMapBatchHandler(modelType reflect.Type, bulkWriter MapsWriter, logs ...func(context.Context, string)) *MapBatchHandler {
+func NewMapBatchHandler(modelType reflect.Type, writeBatch func(context.Context, []map[string]interface{}) ([]int, []int, error), logs ...func(context.Context, string)) *MapBatchHandler {
 	modelsType := reflect.Zero(reflect.SliceOf(modelType)).Type()
 	typesTag := []string{"json", "bson"}
 	mapJsonIndex := BuildMapField(modelType, typesTag, "json")
-	h := &MapBatchHandler{modelType: modelType, modelsType: modelsType, batchWriter: bulkWriter, mapJsonIndex: mapJsonIndex}
+	h := &MapBatchHandler{modelType: modelType, modelsType: modelsType, Write: writeBatch, mapJsonIndex: mapJsonIndex}
 	if len(logs) >= 1 {
 		h.LogError = logs[0]
 	}
@@ -61,7 +61,7 @@ func (h *MapBatchHandler) Handle(ctx context.Context, data []*Message) ([]*Messa
 			h.LogError(ctx, "error when converting to map: "+er1.Error())
 		}
 	}
-	successIndices, failIndices, er2 := h.batchWriter.WriteBatch(ctx, modelMaps)
+	successIndices, failIndices, er2 := h.Write(ctx, modelMaps)
 	if h.LogInfo != nil {
 		h.LogInfo(ctx, fmt.Sprintf(`success indices %v fail indices %v`, successIndices, failIndices))
 	}

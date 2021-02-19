@@ -16,36 +16,36 @@ type ConsumerConfig struct {
 }
 type DefaultConsumerHandler struct {
 	ModelType      reflect.Type
-	Validator      Validator
-	Writer         Writer
+	Validate       func(ctx context.Context, message *Message) error
+	Write          func(ctx context.Context, model interface{}) error
 	LimitRetry     int
-	RetryService   RetryService
+	Retry          func(ctx context.Context, message *Message) error
 	RetryCountName string
-	ErrorHandler   ErrorHandler
+	Error          func(ctx context.Context, message *Message) error
 	Retries        *[]time.Duration
 	Goroutines     bool
 	LogError       func(context.Context, string)
 	LogInfo        func(context.Context, string)
 }
 
-func NewConsumerHandlerByConfig(c ConsumerConfig, modelType reflect.Type, writer Writer, retryService RetryService, validator Validator, errorHandler ErrorHandler, logs ...func(context.Context, string)) *DefaultConsumerHandler {
-	return NewConsumerHandlerWithRetryService(modelType, writer, c.LimitRetry, retryService, c.RetryCountName, validator, errorHandler, c.Goroutines, logs...)
+func NewConsumerHandlerByConfig(c ConsumerConfig, modelType reflect.Type, write func(context.Context, interface{}) error, retry func(context.Context, *Message) error, validate func(context.Context, *Message) error, handleError func(context.Context, *Message) error, logs ...func(context.Context, string)) *DefaultConsumerHandler {
+	return NewConsumerHandlerWithRetryService(modelType, write, c.LimitRetry, retry, c.RetryCountName, validate, handleError, c.Goroutines, logs...)
 }
-func NewConsumerHandlerWithRetryConfig(modelType reflect.Type, writer Writer, validator Validator, c *RetryConfig, goroutines bool, logs ...func(context.Context, string)) *DefaultConsumerHandler {
+func NewConsumerHandlerWithRetryConfig(modelType reflect.Type, write func(context.Context, interface{}) error, validate func(context.Context, *Message) error, c *RetryConfig, goroutines bool, logs ...func(context.Context, string)) *DefaultConsumerHandler {
 	if c == nil {
-		return NewConsumerHandlerWithRetries(modelType, writer, validator, nil, goroutines, logs...)
+		return NewConsumerHandlerWithRetries(modelType, write, validate, nil, goroutines, logs...)
 	}
 	retries := DurationsFromValue(*c, "Retry", 20)
 	if len(retries) == 0 {
-		return NewConsumerHandlerWithRetries(modelType, writer, validator, nil, goroutines, logs...)
+		return NewConsumerHandlerWithRetries(modelType, write, validate, nil, goroutines, logs...)
 	}
-	return NewConsumerHandlerWithRetries(modelType, writer, validator, retries, goroutines, logs...)
+	return NewConsumerHandlerWithRetries(modelType, write, validate, retries, goroutines, logs...)
 }
-func NewConsumerHandlerWithRetries(modelType reflect.Type, writer Writer, validator Validator, retries []time.Duration, goroutines bool, logs ...func(context.Context, string)) *DefaultConsumerHandler {
+func NewConsumerHandlerWithRetries(modelType reflect.Type, write func(context.Context, interface{}) error, validate func(context.Context, *Message) error, retries []time.Duration, goroutines bool, logs ...func(context.Context, string)) *DefaultConsumerHandler {
 	c := &DefaultConsumerHandler{
 		ModelType:  modelType,
-		Writer:     writer,
-		Validator:  validator,
+		Write:      write,
+		Validate:   validate,
 		Goroutines: goroutines,
 	}
 	if retries != nil {
@@ -59,26 +59,27 @@ func NewConsumerHandlerWithRetries(modelType reflect.Type, writer Writer, valida
 	}
 	return c
 }
-func NewConsumerHandler(modelType reflect.Type, writer Writer, validator Validator, goroutines bool, logs ...func(context.Context, string)) *DefaultConsumerHandler {
-	return NewConsumerHandlerWithRetryService(modelType, writer, -1, nil, "", validator, nil, goroutines, logs...)
+func NewConsumerHandler(modelType reflect.Type, write func(context.Context, interface{}) error, validate func(context.Context, *Message) error, goroutines bool, logs ...func(context.Context, string)) *DefaultConsumerHandler {
+	return NewConsumerHandlerWithRetryService(modelType, write, -1, nil, "", validate, nil, goroutines, logs...)
 }
-func NewConsumerHandlerWithRetryService(modelType reflect.Type, writer Writer, limitRetry int, retryService RetryService, retryCountName string, validator Validator,
-	errorHandler ErrorHandler,
+func NewConsumerHandlerWithRetryService(modelType reflect.Type, write func(context.Context, interface{}) error, limitRetry int, retry func(context.Context, *Message) error, retryCountName string, validate func(context.Context, *Message) error,
+	handleError func(context.Context, *Message) error,
 	goroutines bool, logs ...func(context.Context, string)) *DefaultConsumerHandler {
 	if len(retryCountName) == 0 {
 		retryCountName = "retryCount"
 	}
-	if retryService != nil && errorHandler == nil {
-		errorHandler = NewErrorHandler(logs...)
+	if retry != nil && handleError == nil {
+		e1 := NewErrorHandler(logs...)
+		handleError = e1.HandleError
 	}
 	c := &DefaultConsumerHandler{
 		ModelType:      modelType,
-		Writer:         writer,
-		Validator:      validator,
+		Write:          write,
+		Validate:       validate,
 		LimitRetry:     limitRetry,
-		RetryService:   retryService,
+		Retry:          retry,
 		RetryCountName: retryCountName,
-		ErrorHandler:   errorHandler,
+		Error:          handleError,
 		Goroutines:     goroutines,
 	}
 	if len(logs) >= 1 {
@@ -102,8 +103,8 @@ func (c *DefaultConsumerHandler) Handle(ctx context.Context, message *Message, e
 	if c.LogInfo != nil {
 		c.LogInfo(ctx, fmt.Sprintf("Received message: %s", message.Data))
 	}
-	if c.Validator != nil {
-		er2 := c.Validator.Validate(ctx, message)
+	if c.Validate != nil {
+		er2 := c.Validate(ctx, message)
 		if er2 != nil {
 			if c.LogError != nil {
 				l := logMessage{Id: message.Id, Data: message.Data, Attributes: message.Attributes}
@@ -135,12 +136,12 @@ func (c *DefaultConsumerHandler) Handle(ctx context.Context, message *Message, e
 
 func (c *DefaultConsumerHandler) write(ctx context.Context, message *Message, item interface{}) error {
 	ctx = context.WithValue(ctx, "message", message)
-	if c.RetryService == nil && c.Retries != nil && len(*c.Retries) > 0 {
-		if er1 := c.Writer.Write(ctx, item); er1 != nil {
+	if c.Retry == nil && c.Retries != nil && len(*c.Retries) > 0 {
+		if er1 := c.Write(ctx, item); er1 != nil {
 			i := 0
 			err := Retry(ctx, *c.Retries, func() (err error) {
 				i = i + 1
-				er2 := c.Writer.Write(ctx, item)
+				er2 := c.Write(ctx, item)
 				if er2 == nil && c.LogError != nil {
 					c.LogError(ctx, fmt.Sprintf("Write successfully after %d retries %s", i, message.Data))
 				}
@@ -153,14 +154,14 @@ func (c *DefaultConsumerHandler) write(ctx context.Context, message *Message, it
 		}
 		return nil
 	} else {
-		er3 := c.Writer.Write(ctx, item)
+		er3 := c.Write(ctx, item)
 		if er3 == nil {
 			return er3
 		}
 		c.LogError(ctx, fmt.Sprintf("Fail to write %s . Error: %s", message.Data, er3.Error()))
-		if c.RetryService == nil {
-			if c.ErrorHandler != nil {
-				c.ErrorHandler.HandleError(ctx, message)
+		if c.Retry == nil {
+			if c.Error != nil {
+				c.Error(ctx, message)
 			}
 			return er3
 		}
@@ -180,8 +181,8 @@ func (c *DefaultConsumerHandler) write(ctx context.Context, message *Message, it
 				l := logMessage{Id: message.Id, Data: message.Data, Attributes: message.Attributes}
 				c.LogInfo(ctx, fmt.Sprintf("Retry: %d . Retry limitation: %d . Message: %s.", retryCount, c.LimitRetry, l))
 			}
-			if c.ErrorHandler != nil {
-				c.ErrorHandler.HandleError(ctx, message)
+			if c.Error != nil {
+				c.Error(ctx, message)
 			}
 		} else {
 			if c.LogInfo != nil {
@@ -189,7 +190,7 @@ func (c *DefaultConsumerHandler) write(ctx context.Context, message *Message, it
 				c.LogInfo(ctx, fmt.Sprintf("Retry: %d . Message: %s.", retryCount, l))
 			}
 			message.Attributes[c.RetryCountName] = strconv.Itoa(retryCount)
-			er2 := c.RetryService.Retry(ctx, message)
+			er2 := c.Retry(ctx, message)
 			if er2 != nil {
 				if c.LogError != nil {
 					c.LogError(ctx, fmt.Sprintf("Cannot retry %s . Error: %s", message, er2.Error()))

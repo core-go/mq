@@ -7,13 +7,13 @@ import (
 
 type BatchConsumerHandler struct {
 	BatchWorker BatchWorker
-	Validator   Validator
+	Validate    func(ctx context.Context, message *Message) error
 	LogError    func(context.Context, string)
 	LogInfo     func(context.Context, string)
 }
 
-func NewBatchConsumerHandler(batchWorker BatchWorker, validator Validator, logs ...func(context.Context, string)) *BatchConsumerHandler {
-	b := BatchConsumerHandler{BatchWorker: batchWorker, Validator: validator}
+func NewBatchConsumerHandler(batchWorker BatchWorker, validate func(context.Context, *Message) error, logs ...func(context.Context, string)) *BatchConsumerHandler {
+	b := BatchConsumerHandler{BatchWorker: batchWorker, Validate: validate}
 	if len(logs) >= 1 {
 		b.LogError = logs[0]
 	}
@@ -35,8 +35,8 @@ func (c *BatchConsumerHandler) Handle(ctx context.Context, message *Message, err
 	if c.LogInfo != nil {
 		c.LogInfo(ctx, fmt.Sprintf("Received message: %s", message.Data))
 	}
-	if c.Validator != nil {
-		er2 := c.Validator.Validate(ctx, message)
+	if c.Validate != nil {
+		er2 := c.Validate(ctx, message)
 		if er2 != nil {
 			if c.LogError != nil {
 				l := logMessage{Id: message.Id, Data: message.Data, Attributes: message.Attributes}

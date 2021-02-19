@@ -6,10 +6,10 @@ import (
 )
 
 type MessageQueueWriter struct {
-	producer Producer
+	Produce func(ctx context.Context, data []byte, attributes map[string]string) (string, error)
 }
 
-func NewMessageQueueWriter(producer Producer) *MessageQueueWriter {
+func NewMessageQueueWriter(producer func(context.Context, []byte, map[string]string) (string, error)) *MessageQueueWriter {
 	return &MessageQueueWriter{producer}
 }
 
@@ -23,10 +23,10 @@ func (w *MessageQueueWriter) Write(ctx context.Context, model interface{}) error
 	}
 	msg := GetMessageFromContext(ctx)
 	if msg != nil && len(msg.Attributes) > 0 {
-		_, er2 := w.producer.Produce(ctx, data, msg.Attributes)
+		_, er2 := w.Produce(ctx, data, msg.Attributes)
 		return er2
 	} else {
-		_, er2 := w.producer.Produce(ctx, data, nil)
+		_, er2 := w.Produce(ctx, data, nil)
 		return er2
 	}
 }

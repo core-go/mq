@@ -8,16 +8,16 @@ import (
 )
 
 type DefaultBatchHandler struct {
-	modelType   reflect.Type
-	modelsType  reflect.Type
-	batchWriter BatchWriter
-	LogError    func(context.Context, string)
-	LogInfo     func(context.Context, string)
+	modelType  reflect.Type
+	modelsType reflect.Type
+	Write      func(ctx context.Context, models interface{}) ([]int, []int, error) // Return: Success indices, Fail indices, Error
+	LogError   func(context.Context, string)
+	LogInfo    func(context.Context, string)
 }
 
-func NewBatchHandler(modelType reflect.Type, bulkWriter BatchWriter, logs ...func(context.Context, string)) *DefaultBatchHandler {
+func NewBatchHandler(modelType reflect.Type, writeBatch func(context.Context, interface{}) ([]int, []int, error), logs ...func(context.Context, string)) *DefaultBatchHandler {
 	modelsType := reflect.Zero(reflect.SliceOf(modelType)).Type()
-	h := &DefaultBatchHandler{modelType: modelType, modelsType: modelsType, batchWriter: bulkWriter}
+	h := &DefaultBatchHandler{modelType: modelType, modelsType: modelsType, Write: writeBatch}
 	if len(logs) >= 1 {
 		h.LogError = logs[0]
 	}
@@ -53,7 +53,7 @@ func (h *DefaultBatchHandler) Handle(ctx context.Context, data []*Message) ([]*M
 			h.LogInfo(ctx, fmt.Sprintf(`models: %s`, sv))
 		}
 	}
-	successIndices, failIndices, er1 := h.batchWriter.WriteBatch(ctx, v.Interface())
+	successIndices, failIndices, er1 := h.Write(ctx, v.Interface())
 	if h.LogInfo != nil {
 		h.LogInfo(ctx, fmt.Sprintf(`success indices %v fail indices %v`, successIndices, failIndices))
 	}

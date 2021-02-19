@@ -6,11 +6,11 @@ import (
 	"time"
 )
 
-type IdGenerator interface {
-	Generate(ctx context.Context) (string, error)
-}
-
-func NewActivityLogSender(producer Producer, config ActivityLogConfig, schema ActivityLogSchema, generator IdGenerator) *ActivityLogSender {
+func NewActivityLogSender(produce func(context.Context, []byte, map[string]string) (string, error), config ActivityLogConfig, schema ActivityLogSchema, options ...func(context.Context) (string, error)) *ActivityLogSender {
+	var generate func(context.Context) (string, error)
+	if len(options) >= 1 {
+		generate = options[0]
+	}
 	if len(schema.User) == 0 {
 		schema.User = "user"
 	}
@@ -26,7 +26,7 @@ func NewActivityLogSender(producer Producer, config ActivityLogConfig, schema Ac
 	if len(schema.Status) == 0 {
 		schema.Status = "status"
 	}
-	sender := ActivityLogSender{Producer: producer, Config: config, Schema: schema, Generator: generator}
+	sender := ActivityLogSender{Produce: produce, Config: config, Schema: schema, Generate: generate}
 	return &sender
 }
 
@@ -38,22 +38,22 @@ type ActivityLogConfig struct {
 	Goroutines bool   `mapstructure:"goroutines" json:"goroutines,omitempty" gorm:"column:goroutines" bson:"goroutines,omitempty" dynamodbav:"goroutines,omitempty" firestore:"goroutines,omitempty"`
 }
 type ActivityLogSchema struct {
-	Id        string    `mapstructure:"id" json:"id,omitempty" gorm:"column:id" bson:"_id,omitempty" dynamodbav:"id,omitempty" firestore:"id,omitempty"`
-	User      string    `mapstructure:"user" json:"user,omitempty" gorm:"column:user" bson:"user,omitempty" dynamodbav:"user,omitempty" firestore:"user,omitempty"`
-	Ip        string    `mapstructure:"ip" json:"ip,omitempty" gorm:"column:ip" bson:"ip,omitempty" dynamodbav:"ip,omitempty" firestore:"ip,omitempty"`
-	Resource  string    `mapstructure:"resource" json:"resource,omitempty" gorm:"column:resource" bson:"resource,omitempty" dynamodbav:"resource,omitempty" firestore:"resource,omitempty"`
-	Action    string    `mapstructure:"action" json:"action,omitempty" gorm:"column:action" bson:"action,omitempty" dynamodbav:"action,omitempty" firestore:"action,omitempty"`
-	Timestamp string    `mapstructure:"timestamp" json:"timestamp,omitempty" gorm:"column:timestamp" bson:"timestamp,omitempty" dynamodbav:"timestamp,omitempty" firestore:"timestamp,omitempty"`
-	Status    string    `mapstructure:"status" json:"status,omitempty" gorm:"column:status" bson:"status,omitempty" dynamodbav:"status,omitempty" firestore:"status,omitempty"`
-	Desc      string    `mapstructure:"desc" json:"desc,omitempty" gorm:"column:desc" bson:"desc,omitempty" dynamodbav:"desc,omitempty" firestore:"desc,omitempty"`
-	Ext       *[]string `mapstructure:"ext" json:"ext,omitempty" gorm:"column:ext" bson:"ext,omitempty" dynamodbav:"ext,omitempty" firestore:"ext,omitempty"`
-	Headers   *[]string `mapstructure:"headers" json:"headers,omitempty" gorm:"column:headers" bson:"headers,omitempty" dynamodbav:"headers,omitempty" firestore:"headers,omitempty"`
+	Id        string   `mapstructure:"id" json:"id,omitempty" gorm:"column:id" bson:"_id,omitempty" dynamodbav:"id,omitempty" firestore:"id,omitempty"`
+	User      string   `mapstructure:"user" json:"user,omitempty" gorm:"column:user" bson:"user,omitempty" dynamodbav:"user,omitempty" firestore:"user,omitempty"`
+	Ip        string   `mapstructure:"ip" json:"ip,omitempty" gorm:"column:ip" bson:"ip,omitempty" dynamodbav:"ip,omitempty" firestore:"ip,omitempty"`
+	Resource  string   `mapstructure:"resource" json:"resource,omitempty" gorm:"column:resource" bson:"resource,omitempty" dynamodbav:"resource,omitempty" firestore:"resource,omitempty"`
+	Action    string   `mapstructure:"action" json:"action,omitempty" gorm:"column:action" bson:"action,omitempty" dynamodbav:"action,omitempty" firestore:"action,omitempty"`
+	Timestamp string   `mapstructure:"timestamp" json:"timestamp,omitempty" gorm:"column:timestamp" bson:"timestamp,omitempty" dynamodbav:"timestamp,omitempty" firestore:"timestamp,omitempty"`
+	Status    string   `mapstructure:"status" json:"status,omitempty" gorm:"column:status" bson:"status,omitempty" dynamodbav:"status,omitempty" firestore:"status,omitempty"`
+	Desc      string   `mapstructure:"desc" json:"desc,omitempty" gorm:"column:desc" bson:"desc,omitempty" dynamodbav:"desc,omitempty" firestore:"desc,omitempty"`
+	Ext       []string `mapstructure:"ext" json:"ext,omitempty" gorm:"column:ext" bson:"ext,omitempty" dynamodbav:"ext,omitempty" firestore:"ext,omitempty"`
+	Headers   []string `mapstructure:"headers" json:"headers,omitempty" gorm:"column:headers" bson:"headers,omitempty" dynamodbav:"headers,omitempty" firestore:"headers,omitempty"`
 }
 type ActivityLogSender struct {
-	Producer  Producer
-	Config    ActivityLogConfig
-	Schema    ActivityLogSchema
-	Generator IdGenerator
+	Produce  func(ctx context.Context, data []byte, attributes map[string]string) (string, error)
+	Config   ActivityLogConfig
+	Schema   ActivityLogSchema
+	Generate func(ctx context.Context) (string, error)
 }
 
 func (s *ActivityLogSender) Write(ctx context.Context, resource string, action string, success bool, desc string) error {
@@ -74,8 +74,8 @@ func (s *ActivityLogSender) Write(ctx context.Context, resource string, action s
 	if len(ch.Ip) > 0 {
 		log[ch.Ip] = GetString(ctx, s.Config.Ip)
 	}
-	if len(ch.Id) > 0 && s.Generator != nil {
-		id, er0 := s.Generator.Generate(ctx)
+	if len(ch.Id) > 0 && s.Generate != nil {
+		id, er0 := s.Generate(ctx)
 		if er0 == nil && len(id) > 0 {
 			log[ch.Id] = id
 		}
@@ -92,18 +92,17 @@ func (s *ActivityLogSender) Write(ctx context.Context, resource string, action s
 		return er1
 	}
 	if !s.Config.Goroutines {
-		_, er3 := s.Producer.Produce(ctx, msg, headers)
+		_, er3 := s.Produce(ctx, msg, headers)
 		return er3
 	} else {
-		go s.Producer.Produce(ctx, msg, headers)
+		go s.Produce(ctx, msg, headers)
 		return nil
 	}
 }
-func BuildExt(ctx context.Context, keys *[]string) map[string]interface{} {
+func BuildExt(ctx context.Context, keys []string) map[string]interface{} {
 	headers := make(map[string]interface{})
 	if keys != nil {
-		hs := *keys
-		for _, header := range hs {
+		for _, header := range keys {
 			v := ctx.Value(header)
 			if v != nil {
 				headers[header] = v
@@ -112,11 +111,10 @@ func BuildExt(ctx context.Context, keys *[]string) map[string]interface{} {
 	}
 	return headers
 }
-func BuildHeader(ctx context.Context, keys *[]string) map[string]string {
+func BuildHeader(ctx context.Context, keys []string) map[string]string {
 	if keys != nil {
 		headers := make(map[string]string)
-		hs := *keys
-		for _, header := range hs {
+		for _, header := range keys {
 			v := ctx.Value(header)
 			if v != nil {
 				s, ok := v.(string)
