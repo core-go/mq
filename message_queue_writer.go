@@ -9,8 +9,8 @@ type MessageQueueWriter struct {
 	Produce func(ctx context.Context, data []byte, attributes map[string]string) (string, error)
 }
 
-func NewMessageQueueWriter(producer func(context.Context, []byte, map[string]string) (string, error)) *MessageQueueWriter {
-	return &MessageQueueWriter{producer}
+func NewMessageQueueWriter(produce func(context.Context, []byte, map[string]string) (string, error)) *MessageQueueWriter {
+	return &MessageQueueWriter{produce}
 }
 
 func (w *MessageQueueWriter) Write(ctx context.Context, model interface{}) error {

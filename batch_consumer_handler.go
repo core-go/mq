@@ -6,14 +6,14 @@ import (
 )
 
 type BatchConsumerHandler struct {
-	BatchWorker BatchWorker
-	Validate    func(ctx context.Context, message *Message) error
-	LogError    func(context.Context, string)
-	LogInfo     func(context.Context, string)
+	Consume  func(ctx context.Context, message *Message)
+	Validate func(ctx context.Context, message *Message) error
+	LogError func(context.Context, string)
+	LogInfo  func(context.Context, string)
 }
 
-func NewBatchConsumerHandler(batchWorker BatchWorker, validate func(context.Context, *Message) error, logs ...func(context.Context, string)) *BatchConsumerHandler {
-	b := BatchConsumerHandler{BatchWorker: batchWorker, Validate: validate}
+func NewBatchConsumerHandler(consume func(context.Context, *Message), validate func(context.Context, *Message) error, logs ...func(context.Context, string)) *BatchConsumerHandler {
+	b := BatchConsumerHandler{Consume: consume, Validate: validate}
 	if len(logs) >= 1 {
 		b.LogError = logs[0]
 	}
@@ -45,6 +45,6 @@ func (c *BatchConsumerHandler) Handle(ctx context.Context, message *Message, err
 			return er2
 		}
 	}
-	c.BatchWorker.OnConsume(ctx, message)
+	c.Consume(ctx, message)
 	return nil
 }

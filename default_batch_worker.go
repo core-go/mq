@@ -61,7 +61,7 @@ func NewBatchWorker(batchSize int, timeout int64, limitRetry int, handle func(co
 	return w
 }
 
-func (w *DefaultBatchWorker) OnConsume(ctx context.Context, message *Message) {
+func (w *DefaultBatchWorker) Consume(ctx context.Context, message *Message) {
 	w.mux.Lock()
 	if message != nil {
 		w.messages = append(w.messages, message)
@@ -130,11 +130,9 @@ func (w *DefaultBatchWorker) execute(ctx context.Context) {
 						w.Error(ctx, errList[i])
 					}
 					continue
-				} else {
-					if w.LogInfo != nil {
-						x := logMessage{Id: errList[i].Id, Data: errList[i].Data, Attributes: errList[i].Attributes}
-						w.LogInfo(ctx, fmt.Sprintf("Retry: %d . Message: %s.", retryCount, x))
-					}
+				} else if w.LogInfo != nil {
+					x := logMessage{Id: errList[i].Id, Data: errList[i].Data, Attributes: errList[i].Attributes}
+					w.LogInfo(ctx, fmt.Sprintf("Retry: %d . Message: %s.", retryCount, x))
 				}
 				errList[i].Attributes[w.RetryCountName] = strconv.Itoa(retryCount)
 				er3 := w.Retry(ctx, errList[i])
@@ -153,14 +151,14 @@ func (w *DefaultBatchWorker) reset(ctx context.Context) {
 	w.latestExecutedTime = time.Now()
 }
 
-func (w *DefaultBatchWorker) RunScheduler(ctx context.Context) {
+func (w *DefaultBatchWorker) Run(ctx context.Context) {
 	w.reset(ctx)
 	ticker := time.NewTicker(time.Duration(w.timeout) * time.Millisecond)
 	go func() {
 		for {
 			select {
 			case <-ticker.C:
-				w.OnConsume(ctx, nil)
+				w.Consume(ctx, nil)
 			}
 		}
 	}()
