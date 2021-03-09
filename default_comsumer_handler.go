@@ -22,7 +22,7 @@ type DefaultConsumerHandler struct {
 	Retry          func(ctx context.Context, message *Message) error
 	RetryCountName string
 	Error          func(ctx context.Context, message *Message) error
-	Retries        *[]time.Duration
+	Retries        []time.Duration
 	Goroutines     bool
 	LogError       func(context.Context, string)
 	LogInfo        func(context.Context, string)
@@ -49,7 +49,7 @@ func NewConsumerHandlerWithRetries(modelType reflect.Type, write func(context.Co
 		Goroutines: goroutines,
 	}
 	if retries != nil {
-		c.Retries = &retries
+		c.Retries = retries
 	}
 	if len(logs) >= 1 {
 		c.LogError = logs[0]
@@ -124,7 +124,7 @@ func (c *DefaultConsumerHandler) Handle(ctx context.Context, message *Message, e
 			}
 			return nil
 		}
-		item = reflect.Indirect(reflect.ValueOf(v)).Interface()
+		item = v
 	}
 	if c.Goroutines {
 		go c.write(ctx, message, item)
@@ -136,10 +136,10 @@ func (c *DefaultConsumerHandler) Handle(ctx context.Context, message *Message, e
 
 func (c *DefaultConsumerHandler) write(ctx context.Context, message *Message, item interface{}) error {
 	ctx = context.WithValue(ctx, "message", message)
-	if c.Retry == nil && c.Retries != nil && len(*c.Retries) > 0 {
+	if c.Retry == nil && c.Retries != nil && len(c.Retries) > 0 {
 		if er1 := c.Write(ctx, item); er1 != nil {
 			i := 0
-			err := Retry(ctx, *c.Retries, func() (err error) {
+			err := Retry(ctx, c.Retries, func() (err error) {
 				i = i + 1
 				er2 := c.Write(ctx, item)
 				if er2 == nil && c.LogError != nil {
@@ -148,7 +148,7 @@ func (c *DefaultConsumerHandler) write(ctx context.Context, message *Message, it
 				return er2
 			}, c.LogError)
 			if err != nil && c.LogError != nil {
-				c.LogError(ctx, fmt.Sprintf("Failed to write after %d retries: %s. Error: %s.", len(*c.Retries), message.Data, er1.Error()))
+				c.LogError(ctx, fmt.Sprintf("Failed to write after %d retries: %s. Error: %s.", len(c.Retries), message.Data, er1.Error()))
 			}
 			return err
 		}

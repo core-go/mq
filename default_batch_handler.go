@@ -30,10 +30,13 @@ func NewBatchHandler(modelType reflect.Type, writeBatch func(context.Context, in
 func (h *DefaultBatchHandler) Handle(ctx context.Context, data []*Message) ([]*Message, error) {
 	failMessages := make([]*Message, 0)
 
-	var v = reflect.Indirect(reflect.ValueOf(h.initModels()))
+	vs := h.initModels()
+	var v = reflect.Indirect(reflect.ValueOf(vs))
 	for _, message := range data {
 		if message.Value != nil {
-			v = reflect.Append(v, reflect.ValueOf(message.Value))
+			vo := reflect.ValueOf(message.Value)
+			v1 := reflect.Indirect(vo)
+			v = reflect.Append(v, v1)
 		} else {
 			item := InitModel(h.modelType)
 			err := json.Unmarshal(message.Data, item)
@@ -41,7 +44,8 @@ func (h *DefaultBatchHandler) Handle(ctx context.Context, data []*Message) ([]*M
 				failMessages = append(failMessages, message)
 				return failMessages, fmt.Errorf(`cannot unmarshal item: %s. Error: %s`, message.Data, err.Error())
 			}
-			x := reflect.Indirect(reflect.ValueOf(item)).Interface()
+			vo := reflect.ValueOf(item)
+			x := reflect.Indirect(vo).Interface()
 			v = reflect.Append(v, reflect.ValueOf(x))
 		}
 	}

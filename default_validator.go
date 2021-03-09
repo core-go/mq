@@ -28,7 +28,7 @@ func (v *DefaultValidator) Validate(ctx context.Context, message *Message) error
 	if err != nil {
 		return fmt.Errorf(`cannot unmarshal item: %s. Error: %s`, message.Data, err.Error())
 	}
-	message.Value = reflect.Indirect(reflect.ValueOf(item)).Interface()
+	message.Value = item
 	errorMessages, err := v.validate(ctx, message.Value)
 	if err != nil {
 		if v.LogError != nil {
