@@ -5,15 +5,15 @@ import (
 	"fmt"
 )
 
-type BatchConsumerHandler struct {
+type Subscription struct {
 	receive  func(ctx context.Context, message *Message)
 	Validate func(ctx context.Context, message *Message) error
 	LogError func(context.Context, string)
 	LogInfo  func(context.Context, string)
 }
 
-func NewBatchConsumerHandler(receive func(context.Context, *Message), validate func(context.Context, *Message) error, logs ...func(context.Context, string)) *BatchConsumerHandler {
-	b := BatchConsumerHandler{receive: receive, Validate: validate}
+func NewSubscription(receive func(context.Context, *Message), validate func(context.Context, *Message) error, logs ...func(context.Context, string)) *Subscription {
+	b := Subscription{receive: receive, Validate: validate}
 	if len(logs) >= 1 {
 		b.LogError = logs[0]
 	}
@@ -23,7 +23,7 @@ func NewBatchConsumerHandler(receive func(context.Context, *Message), validate f
 	return &b
 }
 
-func (c *BatchConsumerHandler) Handle(ctx context.Context, message *Message, err error) error {
+func (c *Subscription) Receive(ctx context.Context, message *Message, err error) error {
 	if err != nil {
 		if c.LogError != nil {
 			c.LogError(ctx, fmt.Sprintf("Processing message error: %s", err.Error()))

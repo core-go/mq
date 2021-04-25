@@ -30,7 +30,7 @@ func NewBatchHandler(modelType reflect.Type, writeBatch func(context.Context, in
 func (h *BatchHandler) Handle(ctx context.Context, data []*Message) ([]*Message, error) {
 	failMessages := make([]*Message, 0)
 
-	vs := initModels(h.modelsType)
+	vs := InitModels(h.modelsType)
 	var v = reflect.Indirect(reflect.ValueOf(vs))
 	for _, message := range data {
 		if message.Value != nil {
@@ -78,8 +78,4 @@ func (h *BatchHandler) Handle(ctx context.Context, data []*Message) ([]*Message,
 		}
 	}
 	return data, er1
-}
-
-func initModels(modelsType reflect.Type) interface{} {
-	return reflect.New(modelsType).Interface()
 }
