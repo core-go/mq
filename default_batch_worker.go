@@ -14,7 +14,7 @@ type DefaultBatchWorker struct {
 	batchSize          int
 	timeout            int64
 	limitRetry         int
-	Handle             func(ctx context.Context, data []*Message) ([]*Message, error)
+	handle             func(ctx context.Context, data []*Message) ([]*Message, error)
 	Retry              func(ctx context.Context, message *Message) error
 	RetryCountName     string
 	Error              func(ctx context.Context, message *Message) error
@@ -46,7 +46,7 @@ func NewBatchWorker(batchSize int, timeout int64, limitRetry int, handle func(co
 		batchSize:      batchSize,
 		timeout:        timeout,
 		limitRetry:     limitRetry,
-		Handle:         handle,
+		handle:         handle,
 		Retry:          retry,
 		RetryCountName: retryCountName,
 		Error:          handleError,
@@ -61,7 +61,7 @@ func NewBatchWorker(batchSize int, timeout int64, limitRetry int, handle func(co
 	return w
 }
 
-func (w *DefaultBatchWorker) Consume(ctx context.Context, message *Message) {
+func (w *DefaultBatchWorker) Handle(ctx context.Context, message *Message) {
 	w.mux.Lock()
 	if message != nil {
 		w.messages = append(w.messages, message)
@@ -93,7 +93,7 @@ func (w *DefaultBatchWorker) execute(ctx context.Context) {
 		return
 	}
 
-	errList, err := w.Handle(ctx, w.messages)
+	errList, err := w.handle(ctx, w.messages)
 
 	if err != nil && w.LogError != nil {
 		w.LogError(ctx, "Error of batch handling: "+err.Error())
@@ -158,7 +158,7 @@ func (w *DefaultBatchWorker) Run(ctx context.Context) {
 		for {
 			select {
 			case <-ticker.C:
-				w.Consume(ctx, nil)
+				w.Handle(ctx, nil)
 			}
 		}
 	}()

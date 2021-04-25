@@ -9,12 +9,12 @@ import (
 	"time"
 )
 
-type ConsumerConfig struct {
-	RetryCountName string `mapstructure:"retry_count_name"`
-	LimitRetry     int    `mapstructure:"limit_retry"`
-	Goroutines     bool   `mapstructure:"goroutines"`
+type HandlerConfig struct {
+	RetryCountName string `mapstructure:"retry_count_name" json:"retryCountName,omitempty" gorm:"column:retrycountname" bson:"retryCountName,omitempty" dynamodbav:"retryCountName,omitempty" firestore:"retryCountName,omitempty"`
+	LimitRetry     int    `mapstructure:"limit_retry" json:"limitRetry,omitempty" gorm:"column:limitretry" bson:"limitRetry,omitempty" dynamodbav:"limitRetry,omitempty" firestore:"limitRetry,omitempty"`
+	Goroutines     bool   `mapstructure:"goroutines" json:"goroutines,omitempty" gorm:"column:goroutines" bson:"goroutines,omitempty" dynamodbav:"goroutines,omitempty" firestore:"goroutines,omitempty"`
 }
-type DefaultConsumerHandler struct {
+type Handler struct {
 	ModelType      reflect.Type
 	Validate       func(ctx context.Context, message *Message) error
 	Write          func(ctx context.Context, model interface{}) error
@@ -28,21 +28,21 @@ type DefaultConsumerHandler struct {
 	LogInfo        func(context.Context, string)
 }
 
-func NewConsumerHandlerByConfig(c ConsumerConfig, modelType reflect.Type, write func(context.Context, interface{}) error, retry func(context.Context, *Message) error, validate func(context.Context, *Message) error, handleError func(context.Context, *Message) error, logs ...func(context.Context, string)) *DefaultConsumerHandler {
-	return NewConsumerHandlerWithRetryService(modelType, write, c.LimitRetry, retry, c.RetryCountName, validate, handleError, c.Goroutines, logs...)
+func NewHandlerByConfig(c HandlerConfig, modelType reflect.Type, write func(context.Context, interface{}) error, retry func(context.Context, *Message) error, validate func(context.Context, *Message) error, handleError func(context.Context, *Message) error, logs ...func(context.Context, string)) *Handler {
+	return NewHandlerWithRetryService(modelType, write, c.LimitRetry, retry, c.RetryCountName, validate, handleError, c.Goroutines, logs...)
 }
-func NewConsumerHandlerWithRetryConfig(modelType reflect.Type, write func(context.Context, interface{}) error, validate func(context.Context, *Message) error, c *RetryConfig, goroutines bool, logs ...func(context.Context, string)) *DefaultConsumerHandler {
+func NewHandlerWithRetryConfig(modelType reflect.Type, write func(context.Context, interface{}) error, validate func(context.Context, *Message) error, c *RetryConfig, goroutines bool, logs ...func(context.Context, string)) *Handler {
 	if c == nil {
-		return NewConsumerHandlerWithRetries(modelType, write, validate, nil, goroutines, logs...)
+		return NewHandlerWithRetries(modelType, write, validate, nil, goroutines, logs...)
 	}
 	retries := DurationsFromValue(*c, "Retry", 20)
 	if len(retries) == 0 {
-		return NewConsumerHandlerWithRetries(modelType, write, validate, nil, goroutines, logs...)
+		return NewHandlerWithRetries(modelType, write, validate, nil, goroutines, logs...)
 	}
-	return NewConsumerHandlerWithRetries(modelType, write, validate, retries, goroutines, logs...)
+	return NewHandlerWithRetries(modelType, write, validate, retries, goroutines, logs...)
 }
-func NewConsumerHandlerWithRetries(modelType reflect.Type, write func(context.Context, interface{}) error, validate func(context.Context, *Message) error, retries []time.Duration, goroutines bool, logs ...func(context.Context, string)) *DefaultConsumerHandler {
-	c := &DefaultConsumerHandler{
+func NewHandlerWithRetries(modelType reflect.Type, write func(context.Context, interface{}) error, validate func(context.Context, *Message) error, retries []time.Duration, goroutines bool, logs ...func(context.Context, string)) *Handler {
+	c := &Handler{
 		ModelType:  modelType,
 		Write:      write,
 		Validate:   validate,
@@ -59,12 +59,12 @@ func NewConsumerHandlerWithRetries(modelType reflect.Type, write func(context.Co
 	}
 	return c
 }
-func NewConsumerHandler(modelType reflect.Type, write func(context.Context, interface{}) error, validate func(context.Context, *Message) error, goroutines bool, logs ...func(context.Context, string)) *DefaultConsumerHandler {
-	return NewConsumerHandlerWithRetryService(modelType, write, -1, nil, "", validate, nil, goroutines, logs...)
+func NewHandler(modelType reflect.Type, write func(context.Context, interface{}) error, validate func(context.Context, *Message) error, goroutines bool, logs ...func(context.Context, string)) *Handler {
+	return NewHandlerWithRetryService(modelType, write, -1, nil, "", validate, nil, goroutines, logs...)
 }
-func NewConsumerHandlerWithRetryService(modelType reflect.Type, write func(context.Context, interface{}) error, limitRetry int, retry func(context.Context, *Message) error, retryCountName string, validate func(context.Context, *Message) error,
+func NewHandlerWithRetryService(modelType reflect.Type, write func(context.Context, interface{}) error, limitRetry int, retry func(context.Context, *Message) error, retryCountName string, validate func(context.Context, *Message) error,
 	handleError func(context.Context, *Message) error,
-	goroutines bool, logs ...func(context.Context, string)) *DefaultConsumerHandler {
+	goroutines bool, logs ...func(context.Context, string)) *Handler {
 	if len(retryCountName) == 0 {
 		retryCountName = "retryCount"
 	}
@@ -72,7 +72,7 @@ func NewConsumerHandlerWithRetryService(modelType reflect.Type, write func(conte
 		e1 := NewErrorHandler(logs...)
 		handleError = e1.HandleError
 	}
-	c := &DefaultConsumerHandler{
+	c := &Handler{
 		ModelType:      modelType,
 		Write:          write,
 		Validate:       validate,
@@ -91,7 +91,7 @@ func NewConsumerHandlerWithRetryService(modelType reflect.Type, write func(conte
 	return c
 }
 
-func (c *DefaultConsumerHandler) Handle(ctx context.Context, message *Message, err error) error {
+func (c *Handler) Handle(ctx context.Context, message *Message, err error) error {
 	if err != nil {
 		if c.LogError != nil {
 			c.LogError(ctx, "Processing message error: "+err.Error())
@@ -134,7 +134,7 @@ func (c *DefaultConsumerHandler) Handle(ctx context.Context, message *Message, e
 	}
 }
 
-func (c *DefaultConsumerHandler) write(ctx context.Context, message *Message, item interface{}) error {
+func (c *Handler) write(ctx context.Context, message *Message, item interface{}) error {
 	ctx = context.WithValue(ctx, "message", message)
 	if c.Retry == nil && c.Retries != nil && len(c.Retries) > 0 {
 		if er1 := c.Write(ctx, item); er1 != nil {

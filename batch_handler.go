@@ -7,7 +7,7 @@ import (
 	"reflect"
 )
 
-type DefaultBatchHandler struct {
+type BatchHandler struct {
 	modelType  reflect.Type
 	modelsType reflect.Type
 	Write      func(ctx context.Context, models interface{}) ([]int, []int, error) // Return: Success indices, Fail indices, Error
@@ -15,9 +15,9 @@ type DefaultBatchHandler struct {
 	LogInfo    func(context.Context, string)
 }
 
-func NewBatchHandler(modelType reflect.Type, writeBatch func(context.Context, interface{}) ([]int, []int, error), logs ...func(context.Context, string)) *DefaultBatchHandler {
+func NewBatchHandler(modelType reflect.Type, writeBatch func(context.Context, interface{}) ([]int, []int, error), logs ...func(context.Context, string)) *BatchHandler {
 	modelsType := reflect.Zero(reflect.SliceOf(modelType)).Type()
-	h := &DefaultBatchHandler{modelType: modelType, modelsType: modelsType, Write: writeBatch}
+	h := &BatchHandler{modelType: modelType, modelsType: modelsType, Write: writeBatch}
 	if len(logs) >= 1 {
 		h.LogError = logs[0]
 	}
@@ -27,10 +27,10 @@ func NewBatchHandler(modelType reflect.Type, writeBatch func(context.Context, in
 	return h
 }
 
-func (h *DefaultBatchHandler) Handle(ctx context.Context, data []*Message) ([]*Message, error) {
+func (h *BatchHandler) Handle(ctx context.Context, data []*Message) ([]*Message, error) {
 	failMessages := make([]*Message, 0)
 
-	vs := h.initModels()
+	vs := initModels(h.modelsType)
 	var v = reflect.Indirect(reflect.ValueOf(vs))
 	for _, message := range data {
 		if message.Value != nil {
@@ -80,6 +80,6 @@ func (h *DefaultBatchHandler) Handle(ctx context.Context, data []*Message) ([]*M
 	return data, er1
 }
 
-func (h *DefaultBatchHandler) initModels() interface{} {
-	return reflect.New(h.modelsType).Interface()
+func initModels(modelsType reflect.Type) interface{} {
+	return reflect.New(modelsType).Interface()
 }

@@ -6,45 +6,45 @@ import (
 	"time"
 )
 
-type DefaultProducer struct {
-	produce    func(ctx context.Context, data []byte, attributes map[string]string) (string, error)
+type RetrySender struct {
+	send       func(ctx context.Context, data []byte, attributes map[string]string) (string, error)
 	Retries    []time.Duration
 	Log        func(context.Context, string)
 	Goroutines bool
 }
 
-func NewProducerByConfig(produce func(context.Context, []byte, map[string]string) (string, error), goroutines bool, log func(context.Context, string), c *RetryConfig) *DefaultProducer {
+func NewProducerByConfig(send func(context.Context, []byte, map[string]string) (string, error), goroutines bool, log func(context.Context, string), c *RetryConfig) *RetrySender {
 	if c == nil {
-		return &DefaultProducer{produce: produce, Log: log, Goroutines: goroutines}
+		return &RetrySender{send: send, Log: log, Goroutines: goroutines}
 	} else {
 		retries := DurationsFromValue(*c, "Retry", 20)
 		if len(retries) == 0 {
-			return &DefaultProducer{produce: produce, Log: log, Goroutines: goroutines}
+			return &RetrySender{send: send, Log: log, Goroutines: goroutines}
 		}
-		return &DefaultProducer{produce: produce, Log: log, Retries: retries, Goroutines: goroutines}
+		return &RetrySender{send: send, Log: log, Retries: retries, Goroutines: goroutines}
 	}
 }
-func NewProducer(produce func(context.Context, []byte, map[string]string) (string, error), goroutines bool, log func(context.Context, string), retries ...time.Duration) *DefaultProducer {
-	return &DefaultProducer{produce: produce, Log: log, Retries: retries, Goroutines: goroutines}
+func NewProducer(produce func(context.Context, []byte, map[string]string) (string, error), goroutines bool, log func(context.Context, string), retries ...time.Duration) *RetrySender {
+	return &RetrySender{send: produce, Log: log, Retries: retries, Goroutines: goroutines}
 }
-func (c *DefaultProducer) Produce(ctx context.Context, data []byte, attributes map[string]string) (string, error) {
+func (c *RetrySender) Produce(ctx context.Context, data []byte, attributes map[string]string) (string, error) {
 	if !c.Goroutines {
-		return Produce(ctx, c.produce, data, attributes, c.Log, c.Retries...)
+		return Send(ctx, c.send, data, attributes, c.Log, c.Retries...)
 	} else {
-		go Produce(ctx, c.produce, data, attributes, c.Log, c.Retries...)
+		go Send(ctx, c.send, data, attributes, c.Log, c.Retries...)
 		return "", nil
 	}
 }
-func Produce(ctx context.Context, produce func(context.Context, []byte, map[string]string) (string, error), data []byte, attributes map[string]string, log func(context.Context, string), retries ...time.Duration) (string, error) {
+func Send(ctx context.Context, produce func(context.Context, []byte, map[string]string) (string, error), data []byte, attributes map[string]string, log func(context.Context, string), retries ...time.Duration) (string, error) {
 	l := len(retries)
 	if l == 0 {
 		return produce(ctx, data, attributes)
 	} else {
-		return ProduceWithRetries(ctx, produce, data, attributes, retries, log)
+		return SendWithRetries(ctx, produce, data, attributes, retries, log)
 	}
 }
 
-func ProduceWithRetries(ctx context.Context, produce func(context.Context, []byte, map[string]string) (string, error), data []byte, attributes map[string]string, retries []time.Duration, log func(context.Context, string)) (string, error) {
+func SendWithRetries(ctx context.Context, produce func(context.Context, []byte, map[string]string) (string, error), data []byte, attributes map[string]string, retries []time.Duration, log func(context.Context, string)) (string, error) {
 	id, er1 := produce(ctx, data, attributes)
 	if er1 == nil {
 		return id, er1
