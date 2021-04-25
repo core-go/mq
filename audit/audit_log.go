@@ -6,7 +6,7 @@ import (
 	"time"
 )
 
-func NewActivityLogSender(produce func(context.Context, []byte, map[string]string) (string, error), config ActivityLogConfig, schema ActivityLogSchema, options ...func(context.Context) (string, error)) *ActivityLogSender {
+func NewAuditLogSender(send func(context.Context, []byte, map[string]string) (string, error), config AuditLogConfig, schema AuditLogSchema, options ...func(context.Context) (string, error)) *AuditLogSender {
 	var generate func(context.Context) (string, error)
 	if len(options) >= 1 {
 		generate = options[0]
@@ -26,18 +26,18 @@ func NewActivityLogSender(produce func(context.Context, []byte, map[string]strin
 	if len(schema.Status) == 0 {
 		schema.Status = "status"
 	}
-	sender := ActivityLogSender{Produce: produce, Config: config, Schema: schema, Generate: generate}
+	sender := AuditLogSender{send: send, Config: config, Schema: schema, Generate: generate}
 	return &sender
 }
 
-type ActivityLogConfig struct {
+type AuditLogConfig struct {
 	User       string `mapstructure:"user" json:"user,omitempty" gorm:"column:user" bson:"user,omitempty" dynamodbav:"user,omitempty" firestore:"user,omitempty"`
 	Ip         string `mapstructure:"ip" json:"ip,omitempty" gorm:"column:ip" bson:"ip,omitempty" dynamodbav:"ip,omitempty" firestore:"ip,omitempty"`
 	True       string `mapstructure:"true" json:"true,omitempty" gorm:"column:true" bson:"true,omitempty" dynamodbav:"true,omitempty" firestore:"true,omitempty"`
 	False      string `mapstructure:"false" json:"false,omitempty" gorm:"column:false" bson:"false,omitempty" dynamodbav:"false,omitempty" firestore:"false,omitempty"`
 	Goroutines bool   `mapstructure:"goroutines" json:"goroutines,omitempty" gorm:"column:goroutines" bson:"goroutines,omitempty" dynamodbav:"goroutines,omitempty" firestore:"goroutines,omitempty"`
 }
-type ActivityLogSchema struct {
+type AuditLogSchema struct {
 	Id        string   `mapstructure:"id" json:"id,omitempty" gorm:"column:id" bson:"_id,omitempty" dynamodbav:"id,omitempty" firestore:"id,omitempty"`
 	User      string   `mapstructure:"user" json:"user,omitempty" gorm:"column:user" bson:"user,omitempty" dynamodbav:"user,omitempty" firestore:"user,omitempty"`
 	Ip        string   `mapstructure:"ip" json:"ip,omitempty" gorm:"column:ip" bson:"ip,omitempty" dynamodbav:"ip,omitempty" firestore:"ip,omitempty"`
@@ -49,14 +49,14 @@ type ActivityLogSchema struct {
 	Ext       []string `mapstructure:"ext" json:"ext,omitempty" gorm:"column:ext" bson:"ext,omitempty" dynamodbav:"ext,omitempty" firestore:"ext,omitempty"`
 	Headers   []string `mapstructure:"headers" json:"headers,omitempty" gorm:"column:headers" bson:"headers,omitempty" dynamodbav:"headers,omitempty" firestore:"headers,omitempty"`
 }
-type ActivityLogSender struct {
-	Produce  func(ctx context.Context, data []byte, attributes map[string]string) (string, error)
-	Config   ActivityLogConfig
-	Schema   ActivityLogSchema
+type AuditLogSender struct {
+	send     func(ctx context.Context, data []byte, attributes map[string]string) (string, error)
+	Config   AuditLogConfig
+	Schema   AuditLogSchema
 	Generate func(ctx context.Context) (string, error)
 }
 
-func (s *ActivityLogSender) Write(ctx context.Context, resource string, action string, success bool, desc string) error {
+func (s *AuditLogSender) Write(ctx context.Context, resource string, action string, success bool, desc string) error {
 	log := make(map[string]interface{})
 	ch := s.Schema
 	log[ch.Timestamp] = time.Now()
@@ -70,9 +70,9 @@ func (s *ActivityLogSender) Write(ctx context.Context, resource string, action s
 	} else {
 		log[ch.Status] = s.Config.False
 	}
-	log[ch.User] = GetString(ctx, s.Config.User)
+	log[ch.User] = getString(ctx, s.Config.User)
 	if len(ch.Ip) > 0 {
-		log[ch.Ip] = GetString(ctx, s.Config.Ip)
+		log[ch.Ip] = getString(ctx, s.Config.Ip)
 	}
 	if len(ch.Id) > 0 && s.Generate != nil {
 		id, er0 := s.Generate(ctx)
@@ -80,26 +80,26 @@ func (s *ActivityLogSender) Write(ctx context.Context, resource string, action s
 			log[ch.Id] = id
 		}
 	}
-	ext := BuildExt(ctx, ch.Ext)
+	ext := buildExt(ctx, ch.Ext)
 	if len(ext) > 0 {
 		for k, v := range ext {
 			log[k] = v
 		}
 	}
-	headers := BuildHeader(ctx, ch.Headers)
+	headers := buildHeader(ctx, ch.Headers)
 	msg, er1 := json.Marshal(log)
 	if er1 != nil {
 		return er1
 	}
 	if !s.Config.Goroutines {
-		_, er3 := s.Produce(ctx, msg, headers)
+		_, er3 := s.send(ctx, msg, headers)
 		return er3
 	} else {
-		go s.Produce(ctx, msg, headers)
+		go s.send(ctx, msg, headers)
 		return nil
 	}
 }
-func BuildExt(ctx context.Context, keys []string) map[string]interface{} {
+func buildExt(ctx context.Context, keys []string) map[string]interface{} {
 	headers := make(map[string]interface{})
 	if keys != nil {
 		for _, header := range keys {
@@ -111,7 +111,7 @@ func BuildExt(ctx context.Context, keys []string) map[string]interface{} {
 	}
 	return headers
 }
-func BuildHeader(ctx context.Context, keys []string) map[string]string {
+func buildHeader(ctx context.Context, keys []string) map[string]string {
 	if keys != nil {
 		headers := make(map[string]string)
 		for _, header := range keys {
@@ -131,7 +131,7 @@ func BuildHeader(ctx context.Context, keys []string) map[string]string {
 	}
 	return nil
 }
-func GetString(ctx context.Context, key string) string {
+func getString(ctx context.Context, key string) string {
 	if len(key) > 0 {
 		u := ctx.Value(key)
 		if u != nil {
