@@ -56,7 +56,8 @@ func MakeArray(v interface{}, prefix string, max int) []int64 {
 	}
 	return ar
 }
-//Copy this code from https://stackoverflow.com/questions/47606761/repeat-code-if-an-error-occured
+
+// Retry Copy this code from https://stackoverflow.com/questions/47606761/repeat-code-if-an-error-occured
 func Retry(ctx context.Context, sleeps []time.Duration, f func() error, log func(context.Context, string)) (err error) {
 	attempts := len(sleeps)
 	for i := 0; ; i++ {

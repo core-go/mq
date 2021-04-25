@@ -1,17 +1,15 @@
 package mq
 
-import (
-	"context"
-)
+import "context"
 
 type MqRetryService struct {
-	Produce  func(ctx context.Context, data []byte, attributes map[string]string) (string, error)
+	send  func(ctx context.Context, data []byte, attributes map[string]string) (string, error)
 	LogError func(context.Context, string)
 	LogInfo  func(context.Context, string)
 }
 
-func NewMqRetryService(produce func(context.Context, []byte, map[string]string) (string, error), logs ...func(context.Context, string)) *MqRetryService {
-	s := &MqRetryService{Produce: produce}
+func NewRetryService(send func(context.Context, []byte, map[string]string) (string, error), logs ...func(context.Context, string)) *MqRetryService {
+	s := &MqRetryService{send: send}
 	if len(logs) >= 1 {
 		s.LogError = logs[0]
 	}
@@ -22,7 +20,7 @@ func NewMqRetryService(produce func(context.Context, []byte, map[string]string) 
 }
 
 func (s *MqRetryService) Retry(ctx context.Context, message *Message) error {
-	_, err := s.Produce(ctx, message.Data, message.Attributes)
+	_, err := s.send(ctx, message.Data, message.Attributes)
 	if err != nil {
 		if s.LogError != nil {
 			s.LogError(ctx, `Retry put to mq error: `+err.Error())
