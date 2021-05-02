@@ -1,13 +1,11 @@
 package kafka
 
-import "time"
-
 type ReaderConfig struct {
-	Brokers        []string       `mapstructure:"brokers"`
-	GroupID        string         `mapstructure:"group_id"`
-	Topic          string         `mapstructure:"topic"`
-	Client         ClientConfig   `mapstructure:"client"`
-	MinBytes       *int           `mapstructure:"min_bytes"`
-	MaxBytes       int            `mapstructure:"max_bytes"`
-	CommitInterval *time.Duration `mapstructure:"commit_interval"`
+	Brokers        []string     `mapstructure:"brokers" json:"brokers,omitempty" gorm:"column:brokers" bson:"brokers,omitempty" dynamodbav:"brokers,omitempty" firestore:"brokers,omitempty"`
+	GroupID        string       `mapstructure:"group_id" json:"groupID,omitempty" gorm:"column:groupid" bson:"groupID,omitempty" dynamodbav:"groupID,omitempty" firestore:"groupID,omitempty"`
+	Topic          string       `mapstructure:"topic" json:"topic,omitempty" gorm:"column:topic" bson:"topic,omitempty" dynamodbav:"topic,omitempty" firestore:"topic,omitempty"`
+	Client         ClientConfig `mapstructure:"client" json:"client,omitempty" gorm:"column:client" bson:"client,omitempty" dynamodbav:"client,omitempty" firestore:"client,omitempty"`
+	MinBytes       *int         `mapstructure:"min_bytes" json:"minBytes,omitempty" gorm:"column:minbytes" bson:"minBytes,omitempty" dynamodbav:"minBytes,omitempty" firestore:"minBytes,omitempty"`
+	MaxBytes       int          `mapstructure:"max_bytes" json:"maxBytes,omitempty" gorm:"column:maxbytes" bson:"maxBytes,omitempty" dynamodbav:"maxBytes,omitempty" firestore:"maxBytes,omitempty"`
+	CommitInterval *int64       `mapstructure:"commit_interval" json:"commitInterval,omitempty" gorm:"column:commitinterval" bson:"commitInterval,omitempty" dynamodbav:"commitInterval,omitempty" firestore:"commitInterval,omitempty"`
 }

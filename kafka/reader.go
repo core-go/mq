@@ -3,11 +3,10 @@ package kafka
 import (
 	"context"
 	"crypto/tls"
-	"time"
-
-	"github.com/common-go/mq"
+	"github.com/core-go/mq"
 	"github.com/segmentio/kafka-go"
 	"github.com/segmentio/kafka-go/sasl/scram"
+	"time"
 )
 
 type Reader struct {

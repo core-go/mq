@@ -1,6 +1,9 @@
 package kafka
 
-import "github.com/segmentio/kafka-go"
+import (
+	"github.com/segmentio/kafka-go"
+	"time"
+)
 
 func NewKafkaReader(c ReaderConfig, dialer *kafka.Dialer) *kafka.Reader {
 	c2 := kafka.ReaderConfig{
@@ -10,7 +13,7 @@ func NewKafkaReader(c ReaderConfig, dialer *kafka.Dialer) *kafka.Reader {
 		Dialer:  dialer,
 	}
 	if c.CommitInterval != nil {
-		c2.CommitInterval = *c.CommitInterval
+		c2.CommitInterval = time.Duration(*c.CommitInterval) * time.Nanosecond
 	}
 	if c.MinBytes != nil && *c.MinBytes >= 0 {
 		c2.MinBytes = *c.MinBytes

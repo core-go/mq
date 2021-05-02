@@ -1,34 +1,22 @@
 # mq
-Define 2 standard interfaces: Producer and Consumer 
-- [Producer](https://github.com/common-go/mq/blob/master/producer.go)
-- [Consumer](https://github.com/common-go/mq/blob/master/consumer.go), which requires [Message](https://github.com/common-go/mq/blob/master/message.go) and [ConsumerHandler](https://github.com/common-go/mq/blob/master/consumer_handler.go)
-
 ## Implementations
 Support these message queues:
-- Amazon Simple Queue Service (SQS) at [common-go/sqs](https://github.com/common-go/sqs)
-- Google Cloud Pub/Sub at [common-go/pubsub](https://github.com/common-go/pubsub)
-- Kafka at [common-go/kafka](https://github.com/common-go/kafka)
-- NATS at [common-go/nats](https://github.com/common-go/nats)
-- Active MQ at [common-go/amq](https://github.com/common-go/amq)
-- RabbitMQ at [common-go/rabbitmq](https://github.com/common-go/rabbitmq)
-- IBM MQ at [common-go/ibm-mq](https://github.com/common-go/ibm-mq)
-
-## Versions
-- v0.0.1: Producer only
-- v0.0.5: Consumer only
-- v1.0.0: Producer and Consumer
-- v1.1.0: Producer, Consumer and [Batch Handler](https://github.com/common-go/mq/blob/master/batch_handler.go)
-- v1.1.1: Producer, Consumer and Batch Consumer with DefaultValidator
+- Amazon Simple Queue Service (SQS) at [sqs](https://github.com/core-go/mq/sqs)
+- Google Cloud Pub/Sub at [pubsub](https://github.com/core-go/mq/pubsub)
+- Kafka at [kafka](https://github.com/core-go/mq/kafka)
+- NATS at [nats](https://github.com/core-go/mq/nats)
+- Active MQ at [amq](https://github.com/core-go/mq/amq)
+- RabbitMQ at [rabbitmq](https://github.com/core-go/mq/rabbitmq)
+- IBM MQ at [ibm-mq](https://github.com/core-go/mq/ibm-mq)
 
 ## Installation
-Please make sure to initialize a Go module before installing common-go/mq:
+Please make sure to initialize a Go module before installing core-go/mq:
 
 ```shell
-go get -u github.com/common-go/mq
+go get -u github.com/core-go/mq
 ```
 
 Import:
-
 ```go
-import "github.com/common-go/mq"
+import "github.com/core-go/mq"
 ```

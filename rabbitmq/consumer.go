@@ -2,8 +2,7 @@ package rabbitmq
 
 import (
 	"context"
-
-	"github.com/common-go/mq"
+	"github.com/core-go/mq"
 	"github.com/streadway/amqp"
 )
 

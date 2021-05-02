@@ -3,12 +3,11 @@ package kafka
 import (
 	"context"
 	"crypto/tls"
-	"strings"
-	"time"
-
 	"github.com/google/uuid"
 	"github.com/segmentio/kafka-go"
 	"github.com/segmentio/kafka-go/sasl/scram"
+	"strings"
+	"time"
 )
 
 type Writer struct {

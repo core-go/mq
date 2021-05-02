@@ -3,7 +3,7 @@ package pubsub
 import (
 	"cloud.google.com/go/pubsub"
 	"context"
-	"github.com/common-go/mq"
+	"github.com/core-go/mq"
 )
 
 type Subscriber struct {

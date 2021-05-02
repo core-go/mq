@@ -2,7 +2,7 @@ package nats
 
 import (
 	"context"
-	"github.com/common-go/mq"
+	"github.com/core-go/mq"
 	"github.com/nats-io/nats.go"
 	"net/http"
 	"runtime"

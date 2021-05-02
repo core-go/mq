@@ -1,11 +1,10 @@
 package pubsub
 
 import (
+	"cloud.google.com/go/pubsub"
 	"context"
 	"fmt"
 	"time"
-
-	"cloud.google.com/go/pubsub"
 )
 
 type PermissionType int

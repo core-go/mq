@@ -2,7 +2,6 @@ package amq
 
 import (
 	"context"
-
 	"github.com/go-stomp/stomp"
 )
 

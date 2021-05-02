@@ -1,11 +1,10 @@
 package amq
 
 import (
+	"github.com/go-stomp/stomp"
 	"log"
 	"os"
 	"time"
-
-	"github.com/go-stomp/stomp"
 )
 
 func NewConn(userName string, password string, addr string) (*stomp.Conn, error) {

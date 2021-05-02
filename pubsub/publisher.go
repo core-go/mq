@@ -1,12 +1,11 @@
 package pubsub
 
 import (
+	"cloud.google.com/go/iam"
+	"cloud.google.com/go/pubsub"
 	"context"
 	"log"
 	"time"
-
-	"cloud.google.com/go/iam"
-	"cloud.google.com/go/pubsub"
 )
 
 var CheckTopicPermission = CheckPermission

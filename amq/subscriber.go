@@ -2,7 +2,7 @@ package amq
 
 import (
 	"context"
-	"github.com/common-go/mq"
+	"github.com/core-go/mq"
 	"github.com/go-stomp/stomp"
 	"github.com/go-stomp/stomp/frame"
 	"time"
