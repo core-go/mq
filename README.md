@@ -3,7 +3,7 @@
 Support these message queues:
 - Amazon Simple Queue Service (SQS) at [sqs](https://github.com/core-go/mq/sqs)
 - Google Cloud Pub/Sub at [pubsub](https://github.com/core-go/mq/pubsub)
-- Kafka at [kafka](https://github.com/core-go/mq/kafka)
+- Kafka: at [segmentio/kafka-go](https://github.com/core-go/mq/kafka) and [Shopify/sarama](https://github.com/core-go/mq/sarama)
 - NATS at [nats](https://github.com/core-go/mq/nats)
 - Active MQ at [amq](https://github.com/core-go/mq/amq)
 - RabbitMQ at [rabbitmq](https://github.com/core-go/mq/rabbitmq)
