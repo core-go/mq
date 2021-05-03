@@ -1,4 +1,4 @@
-package zap
+package log
 
 type Config struct {
 	Level    string    `mapstructure:"level" json:"level,omitempty" gorm:"column:level" bson:"level,omitempty" dynamodbav:"level,omitempty" firestore:"level,omitempty"`
