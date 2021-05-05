@@ -41,7 +41,7 @@ func (p *Publisher) Publish(ctx context.Context, data []byte, attributes map[str
 			Subject: p.Subject,
 			Data:    data,
 			Reply:   "",
-			Header:  *header,
+			Header: nats.Header(*header),
 		}
 		err := p.Conn.PublishMsg(msg)
 		return "", err

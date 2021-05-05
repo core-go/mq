@@ -38,7 +38,7 @@ func NewSubscriberByConfig(c SubscriberConfig) (*Subscriber, error) {
 func (c *Subscriber) Subscribe(ctx context.Context, handle func(context.Context, *mq.Message, error) error) {
 	if c.Header {
 		c.Conn.Subscribe(c.Subject, func(msg *nats.Msg) {
-			attrs := HeaderToMap(msg.Header)
+			attrs := HeaderToMap(http.Header(msg.Header))
 			message := &mq.Message{
 				Data:       msg.Data,
 				Attributes: attrs,
