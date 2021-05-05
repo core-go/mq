@@ -46,7 +46,7 @@ func (s *HealthChecker) Check(ctx context.Context) (map[string]interface{}, erro
 	}
 	conn, err := opts.Connect()
 	if err != nil {
-		return nil, err
+		return res, err
 	}
 	conn.Close()
 	res["status"] = "success"
