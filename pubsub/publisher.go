@@ -23,14 +23,14 @@ func NewPublisher(ctx context.Context, client *pubsub.Client, topicId string, c 
 
 func NewPublisherByConfig(ctx context.Context, c PublisherConfig) (*Publisher, error) {
 	if c.Retry.Retry1 <= 0 {
-		client, err := NewPubSubClient(ctx, c.Client.ProjectId, c.Client.KeyFilename)
+		client, err := NewPubSubClient(ctx, c.Client.ProjectId, c.Client.Credentials)
 		if err != nil {
 			return nil, err
 		}
 		return NewPublisher(ctx, client, c.TopicId, c.Topic), nil
 	} else {
 		durations := DurationsFromValue(c.Retry, "Retry", 9)
-		client, err := NewPubSubClientWithRetries(ctx, c.Client.ProjectId, c.Client.KeyFilename, durations)
+		client, err := NewPubSubClientWithRetries(ctx, c.Client.ProjectId, c.Client.Credentials, durations)
 		if err != nil {
 			return nil, err
 		}

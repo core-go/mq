@@ -12,17 +12,16 @@ import (
 	"time"
 )
 
-func NewPubSubClientWithRetries(ctx context.Context, projectId string, keyFilename string, retries []time.Duration) (*pubsub.Client, error) {
-	if len(keyFilename) > 0 && existFile(keyFilename) {
-		log.Println("key file exists")
-		c, er1 := pubsub.NewClient(ctx, projectId, option.WithCredentialsFile(keyFilename))
+func NewPubSubClientWithRetries(ctx context.Context, projectId string, credentials string, retries []time.Duration) (*pubsub.Client, error) {
+	if len(credentials) > 0 {
+		c, er1 := pubsub.NewClient(ctx, projectId, option.WithCredentialsJSON([]byte(credentials)))
 		if er1 == nil {
 			return c, er1
 		}
 		i := 0
 		err := Retry(retries, func() (err error) {
 			i = i + 1
-			c2, er2 := pubsub.NewClient(ctx, projectId, option.WithCredentialsFile(keyFilename))
+			c2, er2 := pubsub.NewClient(ctx, projectId, option.WithCredentialsJSON([]byte(credentials)))
 			if er2 == nil {
 				c = c2
 			}
@@ -33,16 +32,24 @@ func NewPubSubClientWithRetries(ctx context.Context, projectId string, keyFilena
 		}
 		return c, err
 	} else {
-		log.Println("key file doesn't exists")
+		log.Println("empty credentials")
 		return pubsub.NewClient(ctx, projectId)
 	}
 }
-func NewPubSubClient(ctx context.Context, projectId string, keyFilename string) (*pubsub.Client, error) {
+func NewPubSubClientWithFile(ctx context.Context, projectId string, keyFilename string) (*pubsub.Client, error) {
 	if len(keyFilename) > 0 && existFile(keyFilename) {
 		log.Println("key file exists")
 		return pubsub.NewClient(ctx, projectId, option.WithCredentialsFile(keyFilename))
 	} else {
 		log.Println("key file doesn't exists")
+		return pubsub.NewClient(ctx, projectId)
+	}
+}
+func NewPubSubClient(ctx context.Context, projectId string, credentials string) (*pubsub.Client, error) {
+	if len(credentials) > 0 {
+		return pubsub.NewClient(ctx, projectId, option.WithCredentialsJSON([]byte(credentials)))
+	} else {
+		log.Println("empty credentials")
 		return pubsub.NewClient(ctx, projectId)
 	}
 }
