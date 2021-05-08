@@ -46,17 +46,19 @@ func (s *HealthChecker) Check(ctx context.Context) (map[string]interface{}, erro
 	for _, broker := range s.Brokers {
 		conn, err := dialer.DialContext(ctx, "tcp", broker)
 		if err != nil {
-			return nil, err
+			return res, err
 		}
 		conn.Close()
 	}
-	res["status"] = "success"
 	return res, nil
 }
 
 func (s *HealthChecker) Build(ctx context.Context, data map[string]interface{}, err error) map[string]interface{} {
 	if err == nil {
 		return data
+	}
+	if data == nil {
+		data = make(map[string]interface{}, 0)
 	}
 	data["error"] = err.Error()
 	return data

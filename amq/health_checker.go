@@ -47,6 +47,9 @@ func (s *HealthChecker) Build(ctx context.Context, data map[string]interface{}, 
 	if err == nil {
 		return data
 	}
+	if data == nil {
+		data = make(map[string]interface{}, 0)
+	}
 	data["error"] = err.Error()
 	return data
 }

@@ -48,11 +48,11 @@ func (s *HealthChecker) Check(ctx context.Context) (map[string]interface{}, erro
 	sd.ObjectString = s.topic
 	subscriptionObject, err := s.queueManager.Sub(sd, &qObject)
 	if err != nil {
-		return nil, err
+		return res, err
 	}
 	err = subscriptionObject.Close(0)
 	if err != nil {
-		return nil, err
+		return res, err
 	}
 	return res, nil
 }
