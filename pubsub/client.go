@@ -18,7 +18,7 @@ func NewPubSubClientWithRetries(ctx context.Context, credentials []byte, retries
 	if len(options) > 0 && len(options[0]) > 0 {
 		projectId = options[0]
 	}
-	if len(credentials) > 0 {
+	if credentials != nil && len(credentials) > 0 {
 		opts := option.WithCredentialsJSON(credentials)
 		creds, er0 := transport.Creds(ctx, opts)
 		if er0 != nil {
@@ -73,7 +73,7 @@ func NewPubSubClient(ctx context.Context, credentials []byte, options ...string)
 			panic("Error: creds is nil")
 		}
 	}
-	if len(credentials) > 0 {
+	if credentials != nil && len(credentials) > 0 {
 		return pubsub.NewClient(ctx, projectId, opts)
 	} else {
 		log.Println("empty credentials")

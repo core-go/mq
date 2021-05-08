@@ -19,14 +19,14 @@ func NewSubscriber(client *pubsub.Client, subscriptionId string, c SubscriptionC
 
 func NewSubscriberByConfig(ctx context.Context, c SubscriberConfig, ackOnConsume bool) (*Subscriber, error) {
 	if c.Retry.Retry1 <= 0 {
-		client, err := NewPubSubClient(ctx, c.Client.ProjectId, c.Client.Credentials)
+		client, err := NewPubSubClient(ctx, []byte(c.Client.Credentials), c.Client.ProjectId)
 		if err != nil {
 			return nil, err
 		}
 		return NewSubscriber(client, c.SubscriptionId, c.SubscriptionConfig, ackOnConsume), nil
 	} else {
 		durations := DurationsFromValue(c.Retry, "Retry", 9)
-		client, err := NewPubSubClientWithRetries(ctx, c.Client.ProjectId, c.Client.Credentials, durations)
+		client, err := NewPubSubClientWithRetries(ctx, []byte(c.Client.Credentials), durations, c.Client.ProjectId)
 		if err != nil {
 			return nil, err
 		}
