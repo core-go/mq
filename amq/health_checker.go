@@ -6,24 +6,20 @@ import (
 )
 
 type HealthChecker struct {
-	Conn *stomp.Conn
+
 	name string
-	des  string
+	addr string
 }
 
-func NewHealthChecker(conn *stomp.Conn, options ...string) *HealthChecker {
-	var name, des string
-	if len(options) >= 1 && len(options[0]) >= 0 {
-		des = options[0]
-	} else {
-		des = "Test::Message"
-	}
+func NewHealthChecker(addr string, options ...string) *HealthChecker {
+	var name string
+
 	if len(options) >= 2 && len(options[1]) >= 0 {
 		name = options[1]
 	} else {
 		name = "amq"
 	}
-	return &HealthChecker{conn, name, des}
+	return &HealthChecker{name, addr}
 }
 
 func (s *HealthChecker) Name() string {
@@ -31,15 +27,16 @@ func (s *HealthChecker) Name() string {
 }
 
 func (s *HealthChecker) Check(ctx context.Context) (map[string]interface{}, error) {
+	var conn *stomp.Conn
+	
 	res := make(map[string]interface{})
-	subscription, err := s.Conn.Subscribe(s.des, stomp.AckAuto,
-		stomp.SubscribeOpt.Header("subscription-type", "ANYCAST"),
-	)
+	var err error
+	conn, err =  stomp.Dial("tcp", s.addr)
 	if err != nil {
-		return res, err
+		return nil, err
 	}
-	err = subscription.Unsubscribe()
-	res["version"] = s.Conn.Version()
+
+	res["version"] = conn.Version()
 	return res, err
 }
 

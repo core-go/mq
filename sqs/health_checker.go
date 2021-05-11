@@ -38,6 +38,7 @@ func (h *HealthChecker) Name() string {
 
 func (h *HealthChecker) Check(ctx context.Context) (map[string]interface{}, error) {
 	res := make(map[string]interface{})
+	h.Client.Config.HTTPClient.Timeout = h.Timeout
 	_, err := h.Client.GetQueueUrl(&sqs.GetQueueUrlInput{
 		QueueName: h.QueueName,
 	})
