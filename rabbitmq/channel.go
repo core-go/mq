@@ -1,6 +1,9 @@
 package rabbitmq
 
-import "github.com/streadway/amqp"
+import (
+	"time"
+	"github.com/streadway/amqp"
+)
 
 func NewChannel(url string) (*amqp.Channel, error) {
 	conn, err := amqp.Dial(url)
@@ -10,3 +13,17 @@ func NewChannel(url string) (*amqp.Channel, error) {
 
 	return conn.Channel()
 }
+
+func NewChannelWithTimeOut(url string, timeout time.Duration) (*amqp.Channel, error) {
+	config := amqp.Config{
+		Locale: "en_US",
+		Dial:   amqp.DefaultDial(timeout),
+	}
+	conn, err := amqp.DialConfig(url, config)
+	if err != nil {
+		return nil, err
+	}
+
+	return conn.Channel()
+}
+
