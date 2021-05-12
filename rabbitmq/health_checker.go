@@ -37,7 +37,7 @@ func (s *HealthChecker) Name() string {
 
 func (s *HealthChecker) Check(ctx context.Context) (map[string]interface{}, error) {
 	res := make(map[string]interface{})
-	channel, er1 := NewChannelWithTimeout(s.url, s.timeout)
+	channel, er1 := NewChannelWithTimeOut(s.url, s.timeout)
 	if er1 != nil {
 		return res, er1
 	}
