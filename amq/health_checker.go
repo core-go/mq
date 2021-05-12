@@ -6,7 +6,6 @@ import (
 )
 
 type HealthChecker struct {
-
 	name string
 	addr string
 }
@@ -31,7 +30,7 @@ func (s *HealthChecker) Check(ctx context.Context) (map[string]interface{}, erro
 	
 	res := make(map[string]interface{})
 	var err error
-	conn, err =  stomp.Dial("tcp", s.addr)
+	conn, err = stomp.Dial("tcp", s.addr)
 	if err != nil {
 		return nil, err
 	}
