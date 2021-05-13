@@ -32,7 +32,7 @@ func (s *HealthChecker) Check(ctx context.Context) (map[string]interface{}, erro
 	var err error
 	conn, err = stomp.Dial("tcp", s.addr)
 	if err != nil {
-		return nil, err
+		return res, err
 	}
 
 	res["version"] = conn.Version()
