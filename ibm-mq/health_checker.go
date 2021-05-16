@@ -33,10 +33,10 @@ func NewHealthChecker(connection *ibmmq.MQQueueManager, topic string, options ..
 	} else {
 		name = "ibmmq"
 	}
-	return NewIBMMQHealthChecker(connection, topic, name, 4*time.Second)
+	return NewHealthCheckerWithTimeout(connection, topic, name, 4*time.Second)
 }
 
-func NewIBMMQHealthChecker(connection *ibmmq.MQQueueManager, topic string, name string, timeouts ...time.Duration) *HealthChecker {
+func NewHealthCheckerWithTimeout(connection *ibmmq.MQQueueManager, topic string, name string, timeouts ...time.Duration) *HealthChecker {
 	var timeout time.Duration
 	if len(timeouts) >= 1 {
 		timeout = timeouts[0]
