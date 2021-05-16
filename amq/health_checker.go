@@ -12,7 +12,6 @@ type HealthChecker struct {
 
 func NewHealthChecker(addr string, options ...string) *HealthChecker {
 	var name string
-
 	if len(options) >= 2 && len(options[1]) >= 0 {
 		name = options[1]
 	} else {

@@ -1,8 +1,8 @@
 package rabbitmq
 
 import (
-	"time"
 	"github.com/streadway/amqp"
+	"time"
 )
 
 func NewChannel(url string) (*amqp.Channel, error) {
@@ -10,7 +10,6 @@ func NewChannel(url string) (*amqp.Channel, error) {
 	if err != nil {
 		return nil, err
 	}
-
 	return conn.Channel()
 }
 
@@ -23,7 +22,6 @@ func NewChannelWithTimeOut(url string, timeout time.Duration) (*amqp.Channel, er
 	if err != nil {
 		return nil, err
 	}
-
 	return conn.Channel()
 }
 
