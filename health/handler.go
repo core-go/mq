@@ -6,15 +6,15 @@ import (
 	"net/http"
 )
 
-type HealthHandler struct {
-	Checkers []HealthChecker
+type Handler struct {
+	Checkers []Checker
 }
 
-func NewHealthHandler(checkers ...HealthChecker) *HealthHandler {
-	return &HealthHandler{Checkers: checkers}
+func NewHandler(checkers ...Checker) *Handler {
+	return &Handler{Checkers: checkers}
 }
 
-func (c *HealthHandler) Check(w http.ResponseWriter, r *http.Request) {
+func (c *Handler) Check(w http.ResponseWriter, r *http.Request) {
 	ctx := context.Background()
 	h := Check(ctx, c.Checkers)
 	bytes, err := json.Marshal(h)

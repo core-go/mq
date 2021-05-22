@@ -7,7 +7,7 @@ const (
 	StatusDown = "DOWN"
 )
 
-func Check(ctx context.Context, services []HealthChecker) Health {
+func Check(ctx context.Context, services []Checker) Health {
 	health := Health{}
 	health.Status = StatusUp
 	healths := make(map[string]Health)
