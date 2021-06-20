@@ -19,7 +19,7 @@ func (v *ErrorChecker) Check(ctx context.Context, model interface{}) error {
 		return err
 	}
 	if errors != nil && len(errors) > 0 {
-		m := fmt.Sprintf("Data: %s . Error: %s", model, errors)
+		m := fmt.Sprintf("%s", errors)
 		return fmt.Errorf(m)
 	}
 	return nil
