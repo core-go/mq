@@ -6,13 +6,13 @@ import (
 )
 
 type Subscription struct {
-	receive  func(ctx context.Context, data []byte, header map[string]string)
+	receive  func(ctx context.Context, message *Message)
 	Validate func(ctx context.Context, message *Message) error
 	LogError func(context.Context, string)
 	LogInfo  func(context.Context, string)
 }
 
-func NewSubscription(receive func(context.Context, []byte, map[string]string), validate func(context.Context, *Message) error, logs ...func(context.Context, string)) *Subscription {
+func NewSubscription(receive func(context.Context, *Message), validate func(context.Context, *Message) error, logs ...func(context.Context, string)) *Subscription {
 	b := Subscription{receive: receive, Validate: validate}
 	if len(logs) >= 1 {
 		b.LogError = logs[0]
@@ -23,32 +23,28 @@ func NewSubscription(receive func(context.Context, []byte, map[string]string), v
 	return &b
 }
 
-func (c *Subscription) Receive(ctx context.Context, data []byte, header map[string]string, err error) error {
+func (c *Subscription) Receive(ctx context.Context, message *Message, err error) error {
 	if err != nil {
 		if c.LogError != nil {
 			c.LogError(ctx, fmt.Sprintf("Processing message error: %s", err.Error()))
 		}
 		return err
-	} else if data == nil {
+	} else if message == nil {
 		return nil
 	}
 	if c.LogInfo != nil {
-		c.LogInfo(ctx, fmt.Sprintf("Received message: %s", data))
+		c.LogInfo(ctx, fmt.Sprintf("Received message: %s", message.Data))
 	}
 	if c.Validate != nil {
-		message := &Message{Data: data, Attributes: header}
 		er2 := c.Validate(ctx, message)
 		if er2 != nil {
 			if c.LogError != nil {
-				if header == nil || len(header) == 0 {
-					c.LogError(ctx, fmt.Sprintf("Message is invalid: %s . Error: %s", data, er2.Error()))
-				} else {
-					c.LogError(ctx, fmt.Sprintf("Message is invalid: %s %s. Error: %s", data, header, er2.Error()))
-				}
+				x := CreateLog(message.Data, message.Attributes, message.Id, message.Timestamp)
+				c.LogError(ctx, fmt.Sprintf("Message is invalid: %s . Error: %s", x, er2.Error()))
 			}
 			return er2
 		}
 	}
-	c.receive(ctx, data, header)
+	c.receive(ctx, message)
 	return nil
 }
