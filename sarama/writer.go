@@ -5,9 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/Shopify/sarama"
-	"github.com/google/uuid"
 	"log"
-	"strings"
 	"time"
 )
 
@@ -19,23 +17,23 @@ const (
 
 type Writer struct {
 	SyncProducer sarama.SyncProducer
-	Key          bool
 	Topic        string
+	Generate     func() string
 }
 
-func NewWriter(writer sarama.SyncProducer, generateKey bool, topic string) (*Writer, error) {
-	return &Writer{SyncProducer: writer, Key: generateKey, Topic: topic}, nil
-}
-func NewWriterByConfig(c WriterConfig) (*Writer, error) {
-	generateKey := true
-	if c.Key != nil {
-		generateKey = *c.Key
+func NewWriter(writer sarama.SyncProducer, topic string, options ...func() string) (*Writer, error) {
+	var generate func()string
+	if len(options) > 0 {
+		generate = options[0]
 	}
+	return &Writer{SyncProducer: writer, Topic: topic, Generate: generate}, nil
+}
+func NewWriterByConfig(c WriterConfig, options ...func() string) (*Writer, error) {
 	writer, err := newSyncProducer(c)
 	if err != nil {
 		return nil, err
 	}
-	return NewWriter(*writer, generateKey, c.Topic)
+	return NewWriter(*writer, c.Topic, options...)
 }
 func newSyncProducer(c WriterConfig) (*sarama.SyncProducer, error) {
 	if c.Client.Retry != nil && c.Client.Retry.Retry1 > 0 {
@@ -122,8 +120,8 @@ func (p *Writer) Write(ctx context.Context, data []byte, messageAttributes map[s
 	if messageAttributes != nil {
 		msg.Headers = MapToHeader(messageAttributes)
 	}
-	if p.Key {
-		id := strings.Replace(uuid.New().String(), "-", "", -1)
+	if p.Generate != nil {
+		id := p.Generate()
 		msg.Key = sarama.StringEncoder(id)
 		p, o, err := p.SyncProducer.SendMessage(&msg)
 		m := make(map[string]interface{})

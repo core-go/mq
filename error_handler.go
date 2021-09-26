@@ -16,11 +16,6 @@ func NewErrorHandler(logError ...func(context.Context, string)) *ErrorHandler {
 type ErrorHandler struct {
 	LogError func(context.Context, string)
 }
-type logMessage struct {
-	Id         string            `json:"id,omitempty" gorm:"column:id;primary_key" bson:"id,omitempty" dynamodbav:"id,omitempty" firestore:"id,omitempty"`
-	Data       []byte            `json:"data,omitempty" gorm:"column:data" bson:"data,omitempty" dynamodbav:"data,omitempty" firestore:"data,omitempty"`
-	Attributes map[string]string `json:"attributes,omitempty" gorm:"column:attributes" bson:"attributes,omitempty" dynamodbav:"attributes,omitempty" firestore:"attributes,omitempty"`
-}
 
 func (w *ErrorHandler) HandleError(ctx context.Context, data []byte, attrs map[string]string) error {
 	if w.LogError != nil && data != nil {

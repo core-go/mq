@@ -103,7 +103,7 @@ func (w *DefaultBatchWorker) execute(ctx context.Context) {
 			if w.LogError != nil {
 				l := len(errList)
 				for i := 0; i < l; i++ {
-					x := logMessage{Id: errList[i].Id, Data: errList[i].Data, Attributes: errList[i].Attributes}
+					x := CreateLog(errList[i].Data, errList[i].Attributes, errList[i].Id, errList[i].Timestamp)
 					w.LogError(ctx, fmt.Sprintf("Error message: %s.", x))
 				}
 			}
@@ -123,7 +123,7 @@ func (w *DefaultBatchWorker) execute(ctx context.Context) {
 				retryCount++
 				if retryCount > w.limitRetry {
 					if w.LogInfo != nil {
-						x := logMessage{Id: errList[i].Id, Data: errList[i].Data, Attributes: errList[i].Attributes}
+						x := CreateLog(errList[i].Data, errList[i].Attributes, errList[i].Id, errList[i].Timestamp)
 						w.LogInfo(ctx, fmt.Sprintf("Retry: %d . Retry limitation: %d . Message: %s.", retryCount, w.limitRetry, x))
 					}
 					if w.Error != nil {
@@ -131,13 +131,13 @@ func (w *DefaultBatchWorker) execute(ctx context.Context) {
 					}
 					continue
 				} else if w.LogInfo != nil {
-					x := logMessage{Id: errList[i].Id, Data: errList[i].Data, Attributes: errList[i].Attributes}
+					x := CreateLog(errList[i].Data, errList[i].Attributes, errList[i].Id, errList[i].Timestamp)
 					w.LogInfo(ctx, fmt.Sprintf("Retry: %d . Message: %s.", retryCount, x))
 				}
 				errList[i].Attributes[w.RetryCountName] = strconv.Itoa(retryCount)
 				er3 := w.Retry(ctx, errList[i].Data, errList[i].Attributes)
 				if er3 != nil && w.LogError != nil {
-					x := logMessage{Id: errList[i].Id, Data: errList[i].Data, Attributes: errList[i].Attributes}
+					x := CreateLog(errList[i].Data, errList[i].Attributes, errList[i].Id, errList[i].Timestamp)
 					w.LogError(ctx, fmt.Sprintf("Cannot retry %s . Error: %s", x, er3.Error()))
 				}
 			}
