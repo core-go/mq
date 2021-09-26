@@ -15,7 +15,7 @@ type BatchHandler struct {
 	LogInfo    func(context.Context, string)
 }
 
-func NewBatchHandler(modelType reflect.Type, writeBatch func(context.Context, interface{}) ([]int, []int, error), logs ...func(context.Context, string)) *BatchHandler {
+func NewBatchHandler(writeBatch func(context.Context, interface{}) ([]int, []int, error), modelType reflect.Type, logs ...func(context.Context, string)) *BatchHandler {
 	modelsType := reflect.Zero(reflect.SliceOf(modelType)).Type()
 	h := &BatchHandler{modelType: modelType, modelsType: modelsType, Write: writeBatch}
 	if len(logs) >= 1 {

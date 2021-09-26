@@ -50,6 +50,7 @@ func (c *Subscriber) Subscribe(ctx context.Context, handle func(context.Context,
 			Id:         m.ID,
 			Data:       m.Data,
 			Attributes: m.Attributes,
+			Timestamp:  &m.PublishTime,
 			Raw:        m,
 		}
 		if c.AckOnConsume {

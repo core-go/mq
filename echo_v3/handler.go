@@ -1,26 +1,44 @@
-package echo
+package handler
 
 import (
-	"github.com/core-go/mq/health"
-	"github.com/labstack/echo"
+	"context"
+	"github.com/labstack/echo/v4"
+	"io/ioutil"
 	"net/http"
 )
 
-type Handler struct {
-	Checkers []health.Checker
+type SenderHandler struct {
+	Response string
+	Send     []func(ctx context.Context, data []byte, attributes map[string]string) (string, error)
 }
 
-func NewHandler(checkers ...health.Checker) *Handler {
-	return &Handler{checkers}
+func NewSenderHandler(response string, send ...func(context.Context, []byte, map[string]string) (string, error)) *SenderHandler {
+	return &SenderHandler{Response: response, Send: send}
 }
 
-func (c *Handler) Check() echo.HandlerFunc {
-	return func(ctx echo.Context) error {
-		result := health.Check(ctx.Request().Context(), c.Checkers)
-		if result.Status == health.StatusUp {
-			return ctx.JSON(http.StatusOK, result)
-		} else {
-			return ctx.JSON(http.StatusInternalServerError, result)
+func (h *SenderHandler) Receive(ctx echo.Context) error {
+	r := ctx.Request()
+	b, er1 := ioutil.ReadAll(r.Body)
+	defer r.Body.Close()
+	if er1 != nil {
+		return ctx.String(http.StatusBadRequest, er1.Error())
+	}
+
+	l := len(h.Send)
+	if l == 0 {
+		return ctx.JSON(http.StatusOK, h.Response)
+	}
+	var result string
+	var er2 error
+	for i := 0; i < l; i++ {
+		result, er2 = h.Send[i](r.Context(), b, nil)
+		if er2 != nil {
+			return ctx.String(http.StatusInternalServerError, er2.Error())
 		}
+	}
+	if len(h.Response) == 0 {
+		return ctx.JSON(http.StatusOK, result)
+	} else {
+		return ctx.JSON(http.StatusOK, h.Response)
 	}
 }

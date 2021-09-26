@@ -39,6 +39,7 @@ func (c *Reader) Read(ctx context.Context, handle func(context.Context, *mq.Mess
 				Id:         string(msg.Key),
 				Data:       msg.Value,
 				Attributes: attributes,
+				Timestamp:  &msg.Time,
 				Raw:        msg,
 			}
 			if c.AckOnConsume {

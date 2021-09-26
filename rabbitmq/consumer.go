@@ -45,6 +45,7 @@ func (c *Consumer) Consume(ctx context.Context, handle func(context.Context, *mq
 				Id:         msg.MessageId,
 				Data:       msg.Body,
 				Attributes: attributes,
+				Timestamp:  &msg.Timestamp,
 				Raw:        msg,
 			}
 			if c.AckOnConsume && !c.AutoAck {

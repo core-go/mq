@@ -2,7 +2,7 @@ package ibmmq
 
 import (
 	"fmt"
-	"github.com/ibm-messaging/mq-golang/ibmmq"
+	"github.com/ibm-messaging/mq-golang/v5/ibmmq"
 	"log"
 	"reflect"
 	"strconv"

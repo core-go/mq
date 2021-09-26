@@ -1,26 +1,47 @@
-package gin
+package handler
 
 import (
-	"github.com/core-go/mq/health"
+	"context"
 	"github.com/gin-gonic/gin"
+	"io/ioutil"
 	"net/http"
 )
 
-type Handler struct {
-	Checkers []health.Checker
+type SenderHandler struct {
+	Response string
+	Send     []func(ctx context.Context, data []byte, attributes map[string]string) (string, error)
 }
 
-func NewHandler(checkers ...health.Checker) *Handler {
-	return &Handler{checkers}
+func NewSenderHandler(response string, send ...func(context.Context, []byte, map[string]string) (string, error)) *SenderHandler {
+	return &SenderHandler{Response: response, Send: send}
 }
 
-func (c *Handler) Check() gin.HandlerFunc {
-	return func(ctx *gin.Context) {
-		result := health.Check(ctx.Request.Context(), c.Checkers)
-		if result.Status == health.StatusUp {
-			ctx.JSON(http.StatusOK, result)
-		} else {
-			ctx.JSON(http.StatusInternalServerError, result)
+func (h *SenderHandler) Receive(ctx *gin.Context) {
+	r := ctx.Request
+	b, er1 := ioutil.ReadAll(r.Body)
+	defer r.Body.Close()
+	if er1 != nil {
+		ctx.String(http.StatusBadRequest, er1.Error())
+		return
+	}
+
+	l := len(h.Send)
+	if l == 0 {
+		ctx.JSON(http.StatusOK, h.Response)
+		return
+	}
+	var result string
+	var er2 error
+	for i := 0; i < l; i++ {
+		result, er2 = h.Send[i](r.Context(), b, nil)
+		if er2 != nil {
+			ctx.String(http.StatusInternalServerError, er2.Error())
+			return
 		}
+	}
+	if len(h.Response) == 0 {
+		ctx.JSON(http.StatusOK, result)
+	} else {
+		ctx.JSON(http.StatusOK, h.Response)
 	}
 }

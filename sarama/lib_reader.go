@@ -9,7 +9,7 @@ import (
 type ReaderHandler struct {
 	Topic        []string
 	AckOnConsume bool
-	Handle func(context.Context, *mq.Message, error) error
+	Handle       func(context.Context, *mq.Message, error) error
 }
 
 func NewReaderHandler(Topic []string, handle func(context.Context, *mq.Message, error) error) *ReaderHandler {
@@ -36,6 +36,7 @@ func (r *ReaderHandler) ConsumeClaim(session sarama.ConsumerGroupSession, claim 
 			Id:         string(msg.Key),
 			Data:       msg.Value,
 			Attributes: attributes,
+			Timestamp:  &msg.Timestamp,
 			Raw:        msg,
 		}
 		if r.AckOnConsume {

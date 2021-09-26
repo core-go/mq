@@ -2,7 +2,7 @@ package handler
 
 import (
 	"context"
-	"github.com/labstack/echo/v4"
+	"encoding/json"
 	"io/ioutil"
 	"net/http"
 )
@@ -16,29 +16,36 @@ func NewSenderHandler(response string, send ...func(context.Context, []byte, map
 	return &SenderHandler{Response: response, Send: send}
 }
 
-func (h *SenderHandler) Receive(ctx echo.Context) error {
-	r := ctx.Request()
+func (h *SenderHandler) Receive(w http.ResponseWriter, r *http.Request) {
 	b, er1 := ioutil.ReadAll(r.Body)
 	defer r.Body.Close()
 	if er1 != nil {
-		return ctx.String(http.StatusBadRequest, er1.Error())
+		http.Error(w, er1.Error(), http.StatusBadRequest)
+		return
 	}
-
 	l := len(h.Send)
 	if l == 0 {
-		return ctx.JSON(http.StatusOK, h.Response)
+		respond(w, h.Response)
+		return
 	}
 	var result string
 	var er2 error
 	for i := 0; i < l; i++ {
 		result, er2 = h.Send[i](r.Context(), b, nil)
 		if er2 != nil {
-			return ctx.String(http.StatusInternalServerError, er2.Error())
+			http.Error(w, er2.Error(), http.StatusInternalServerError)
+			return
 		}
 	}
 	if len(h.Response) == 0 {
-		return ctx.JSON(http.StatusOK, result)
+		respond(w, result)
 	} else {
-		return ctx.JSON(http.StatusOK, h.Response)
+		respond(w, h.Response)
 	}
+}
+func respond(w http.ResponseWriter, result interface{}) {
+	response, _ := json.Marshal(result)
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	w.Write(response)
 }
