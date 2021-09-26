@@ -49,12 +49,13 @@ func NewSubscriberByMQSD(manager *ibmmq.MQQueueManager, queueName string, sd *ib
 	// Set options to wait for a maximum of 3 seconds for any new message to arrive
 	gmo.Options |= ibmmq.MQGMO_WAIT
 	gmo.WaitInterval = waitInterval // The WaitInterval is in milliseconds
-	return &Subscriber{manager, queueName, sd, md, gmo}
+	return &Subscriber{QueueManager: manager, QueueName: queueName, sd: sd, md: md, gmo: gmo}
 }
 
 func (c *Subscriber) Subscribe(ctx context.Context, handle func(context.Context, *mq.Message, error) error) {
 	// Create the Object Descriptor that allows us to give the topic name
 
+	var qObjectForC ibmmq.MQObject
 	// The qObject is filled in with a reference to the queue created automatically
 	// for publications. It will be used in a moment for the Get operations
 	_, err := c.QueueManager.Sub(c.sd, &qObjectForC)
