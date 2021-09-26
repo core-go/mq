@@ -4,23 +4,22 @@ import (
 	"context"
 	"fmt"
 	"github.com/Shopify/sarama"
-	"github.com/core-go/mq"
 	"log"
 	"sync"
 	"time"
 )
 
-type Reader struct {
+type SimpleReader struct {
 	ConsumerGroup sarama.ConsumerGroup
 	Topic         []string
 	AckOnConsume  bool
 }
 
-func NewReader(consumerGroup sarama.ConsumerGroup, topic []string, ackOnConsume bool) (*Reader, error) {
-	return &Reader{ConsumerGroup: consumerGroup, Topic: topic, AckOnConsume: ackOnConsume}, nil
+func NewSimpleReader(consumerGroup sarama.ConsumerGroup, topic []string, ackOnConsume bool) (*SimpleReader, error) {
+	return &SimpleReader{ConsumerGroup: consumerGroup, Topic: topic, AckOnConsume: ackOnConsume}, nil
 }
 
-func NewReaderByConfig(c ReaderConfig, ackOnConsume bool) (*Reader, error) {
+func NewSimpleReaderByConfig(c ReaderConfig, ackOnConsume bool) (*SimpleReader, error) {
 	algorithm := sarama.SASLTypeSCRAMSHA256
 	if c.Client.Algorithm != "" {
 		algorithm = c.Client.Algorithm
@@ -41,13 +40,13 @@ func NewReaderByConfig(c ReaderConfig, ackOnConsume bool) (*Reader, error) {
 		if er2 != nil {
 			return nil, er2
 		}
-		return NewReader(*reader, []string{c.Topic}, ackOnConsume)
+		return NewSimpleReader(*reader, []string{c.Topic}, ackOnConsume)
 	} else {
 		reader, er2 := sarama.NewConsumerGroup(c.Brokers, c.GroupID, config)
 		if er2 != nil {
 			return nil, er2
 		}
-		return NewReader(reader, []string{c.Topic}, ackOnConsume)
+		return NewSimpleReader(reader, []string{c.Topic}, ackOnConsume)
 	}
 }
 func NewReaderGroup(addrs []string, groupID string, config *sarama.Config, retries ...time.Duration) (*sarama.ConsumerGroup, error) {
@@ -81,8 +80,8 @@ func NewReaderGroupWithRetryArray(addrs []string, groupID string, config *sarama
 	}
 	return &r, err
 }
-func (c *Reader) Read(ctx context.Context, handle func(context.Context, *mq.Message, error) error) {
-	readerHandler := &ReaderHandler{Topic: c.Topic, AckOnConsume: c.AckOnConsume, Handle: handle}
+func (c *SimpleReader) Read(ctx context.Context, handle func(context.Context, []byte, map[string]string, error) error) {
+	readerHandler := &SimpleReaderHandler{Topic: c.Topic, AckOnConsume: c.AckOnConsume, Handle: handle}
 	wg := &sync.WaitGroup{}
 	wg.Add(1)
 	go func() {
@@ -92,17 +91,17 @@ func (c *Reader) Read(ctx context.Context, handle func(context.Context, *mq.Mess
 			// server-side rebalance happens, the consumer session will need to be
 			// recreated to get the new claims
 			if err := c.ConsumerGroup.Consume(ctx, c.Topic, readerHandler); err != nil {
-				handle(ctx, nil, err)
+				handle(ctx, nil, nil, err)
 			}
 			// check if context was cancelled, signaling that the consumer should stop
 			if ctx.Err() != nil {
-				handle(ctx, nil, ctx.Err())
+				handle(ctx, nil, nil, ctx.Err())
 			}
 		}
 	}()
 	go func() {
 		for err := range c.ConsumerGroup.Errors() {
-			handle(ctx, nil, err)
+			handle(ctx, nil, nil, err)
 		}
 	}()
 	wg.Wait()

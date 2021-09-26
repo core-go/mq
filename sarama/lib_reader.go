@@ -46,11 +46,3 @@ func (r *ReaderHandler) ConsumeClaim(session sarama.ConsumerGroupSession, claim 
 	}
 	return nil
 }
-
-func HeaderToMap(headers []*sarama.RecordHeader) map[string]string {
-	attributes := make(map[string]string, 0)
-	for i := range headers {
-		attributes[string(headers[i].Key)] = string(headers[i].Value)
-	}
-	return attributes
-}
