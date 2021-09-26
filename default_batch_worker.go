@@ -15,9 +15,9 @@ type DefaultBatchWorker struct {
 	timeout            int64
 	limitRetry         int
 	handle             func(ctx context.Context, data []*Message) ([]*Message, error)
-	Retry              func(ctx context.Context, message *Message) error
+	Retry              func(context.Context, []byte, map[string]string) error
 	RetryCountName     string
-	Error              func(ctx context.Context, message *Message) error
+	Error              func(context.Context, []byte, map[string]string) error
 	Goroutine          bool
 	messages           []*Message
 	latestExecutedTime time.Time
@@ -26,15 +26,15 @@ type DefaultBatchWorker struct {
 	LogInfo            func(context.Context, string)
 }
 
-func NewBatchWorkerByConfig(batchConfig BatchWorkerConfig, handle func(context.Context, []*Message) ([]*Message, error), retry func(context.Context, *Message) error, retryCountName string, errorHandler func(context.Context, *Message) error, logs ...func(context.Context, string)) *DefaultBatchWorker {
+func NewBatchWorkerByConfig(batchConfig BatchWorkerConfig, handle func(context.Context, []*Message) ([]*Message, error), retry func(context.Context, []byte, map[string]string) error, retryCountName string, errorHandler func(context.Context, []byte, map[string]string) error, logs ...func(context.Context, string)) *DefaultBatchWorker {
 	return NewBatchWorker(batchConfig.BatchSize, batchConfig.Timeout, batchConfig.LimitRetry, handle, retry, retryCountName, errorHandler, batchConfig.Goroutines, logs...)
 }
 
-func NewDefaultBatchWorker(batchConfig BatchWorkerConfig, handle func(context.Context, []*Message) ([]*Message, error), retry func(context.Context, *Message) error, logs ...func(context.Context, string)) *DefaultBatchWorker {
+func NewDefaultBatchWorker(batchConfig BatchWorkerConfig, handle func(context.Context, []*Message) ([]*Message, error), retry func(context.Context, []byte, map[string]string) error, logs ...func(context.Context, string)) *DefaultBatchWorker {
 	return NewBatchWorker(batchConfig.BatchSize, batchConfig.Timeout, batchConfig.LimitRetry, handle, retry, "", nil, batchConfig.Goroutines, logs...)
 }
 
-func NewBatchWorker(batchSize int, timeout int64, limitRetry int, handle func(context.Context, []*Message) ([]*Message, error), retry func(context.Context, *Message) error, retryCountName string, handleError func(context.Context, *Message) error, goroutine bool, logs ...func(context.Context, string)) *DefaultBatchWorker {
+func NewBatchWorker(batchSize int, timeout int64, limitRetry int, handle func(context.Context, []*Message) ([]*Message, error), retry func(context.Context, []byte, map[string]string) error, retryCountName string, handleError func(context.Context, []byte, map[string]string) error, goroutine bool, logs ...func(context.Context, string)) *DefaultBatchWorker {
 	if len(retryCountName) == 0 {
 		retryCountName = "retryCount"
 	}
@@ -127,7 +127,7 @@ func (w *DefaultBatchWorker) execute(ctx context.Context) {
 						w.LogInfo(ctx, fmt.Sprintf("Retry: %d . Retry limitation: %d . Message: %s.", retryCount, w.limitRetry, x))
 					}
 					if w.Error != nil {
-						w.Error(ctx, errList[i])
+						w.Error(ctx, errList[i].Data, errList[i].Attributes)
 					}
 					continue
 				} else if w.LogInfo != nil {
@@ -135,7 +135,7 @@ func (w *DefaultBatchWorker) execute(ctx context.Context) {
 					w.LogInfo(ctx, fmt.Sprintf("Retry: %d . Message: %s.", retryCount, x))
 				}
 				errList[i].Attributes[w.RetryCountName] = strconv.Itoa(retryCount)
-				er3 := w.Retry(ctx, errList[i])
+				er3 := w.Retry(ctx, errList[i].Data, errList[i].Attributes)
 				if er3 != nil && w.LogError != nil {
 					x := logMessage{Id: errList[i].Id, Data: errList[i].Data, Attributes: errList[i].Attributes}
 					w.LogError(ctx, fmt.Sprintf("Cannot retry %s . Error: %s", x, er3.Error()))

@@ -19,16 +19,16 @@ type Handler struct {
 	ModelType      *reflect.Type
 	Validate       func(ctx context.Context, message *Message) error
 	LimitRetry     int
-	Retry          func(ctx context.Context, message *Message) error
+	Retry          func(context.Context, []byte, map[string]string) error
 	RetryCountName string
-	Error          func(ctx context.Context, message *Message) error
+	Error          func(context.Context, []byte, map[string]string) error
 	Retries        []time.Duration
 	Goroutines     bool
 	LogError       func(context.Context, string)
 	LogInfo        func(context.Context, string)
 }
 
-func NewHandlerByConfig(c HandlerConfig, write func(context.Context, interface{}) error, modelType *reflect.Type, retry func(context.Context, *Message) error, validate func(context.Context, *Message) error, handleError func(context.Context, *Message) error, logs ...func(context.Context, string)) *Handler {
+func NewHandlerByConfig(c HandlerConfig, write func(context.Context, interface{}) error, modelType *reflect.Type, retry func(context.Context, []byte, map[string]string) error, validate func(context.Context, *Message) error, handleError func(context.Context, []byte, map[string]string) error, logs ...func(context.Context, string)) *Handler {
 	return NewHandlerWithRetryService(write, modelType, c.LimitRetry, retry, c.RetryCountName, validate, handleError, c.Goroutines, logs...)
 }
 func NewHandlerWithRetryConfig(write func(context.Context, interface{}) error, modelType *reflect.Type, validate func(context.Context, *Message) error, c *RetryConfig, goroutines bool, logs ...func(context.Context, string)) *Handler {
@@ -62,8 +62,8 @@ func NewHandlerWithRetries(write func(context.Context, interface{}) error, model
 func NewHandler(write func(context.Context, interface{}) error, modelType *reflect.Type, validate func(context.Context, *Message) error, goroutines bool, logs ...func(context.Context, string)) *Handler {
 	return NewHandlerWithRetryService(write, modelType, -1, nil, "", validate, nil, goroutines, logs...)
 }
-func NewHandlerWithRetryService(write func(context.Context, interface{}) error, modelType *reflect.Type, limitRetry int, retry func(context.Context, *Message) error, retryCountName string, validate func(context.Context, *Message) error,
-	handleError func(context.Context, *Message) error,
+func NewHandlerWithRetryService(write func(context.Context, interface{}) error, modelType *reflect.Type, limitRetry int, retry func(context.Context, []byte, map[string]string) error, retryCountName string, validate func(context.Context, *Message) error,
+	handleError func(context.Context, []byte, map[string]string) error,
 	goroutines bool, logs ...func(context.Context, string)) *Handler {
 	if len(retryCountName) == 0 {
 		retryCountName = "retryCount"
@@ -91,24 +91,28 @@ func NewHandlerWithRetryService(write func(context.Context, interface{}) error, 
 	return c
 }
 
-func (c *Handler) Handle(ctx context.Context, message *Message, err error) error {
+func (c *Handler) Handle(ctx context.Context, data []byte, header map[string]string, err error) error {
 	if err != nil {
 		if c.LogError != nil {
 			c.LogError(ctx, "Processing message error: "+err.Error())
 		}
 		return err
-	} else if message == nil {
+	} else if data == nil {
 		return nil
 	}
 	if c.LogInfo != nil {
-		c.LogInfo(ctx, fmt.Sprintf("Received message: %s", message.Data))
+		c.LogInfo(ctx, fmt.Sprintf("Received message: %s", data))
 	}
+	message := &Message{Data: data, Attributes: header}
 	if c.Validate != nil {
 		er2 := c.Validate(ctx, message)
 		if er2 != nil {
 			if c.LogError != nil {
-				l := logMessage{Id: message.Id, Data: message.Data, Attributes: message.Attributes}
-				c.LogError(ctx, fmt.Sprintf("Message is invalid: %s . Error: %s", l, er2.Error()))
+				if header == nil || len(header) == 0 {
+					c.LogError(ctx, fmt.Sprintf("Message is invalid: %s . Error: %s", data, er2.Error()))
+				} else {
+					c.LogError(ctx, fmt.Sprintf("Message is invalid: %s %s . Error: %s", data, header, er2.Error()))
+				}
 			}
 			return er2
 		}
@@ -131,22 +135,22 @@ func (c *Handler) Handle(ctx context.Context, message *Message, err error) error
 		item = v
 	}
 	if c.Goroutines {
-		go c.write(ctx, message, item)
+		go c.write(ctx, data, header, item)
 		return nil
 	} else {
-		return c.write(ctx, message, item)
+		return c.write(ctx, data, header, item)
 	}
 }
-func (c *Handler) write(ctx context.Context, message *Message, item interface{}) error {
-	ctx = context.WithValue(ctx, "message", message)
+func (c *Handler) write(ctx context.Context, data []byte, header map[string]string, item interface{}) error {
+	// ctx = context.WithValue(ctx, "message", message)
 	if c.Retry == nil && c.Retries != nil && len(c.Retries) > 0 {
-		return WriteWithRetry(ctx, c.Write, message, item, c.Retries, c.LogError)
+		return WriteWithRetry(ctx, c.Write, data, item, c.Retries, c.LogError)
 	} else {
-		return Write(ctx, c.Write, message, item, c.Error, c.Retry, c.LimitRetry, c.RetryCountName, c.LogError, c.LogInfo)
+		return Write(ctx, c.Write, data, header, item, c.Error, c.Retry, c.LimitRetry, c.RetryCountName, c.LogError, c.LogInfo)
 	}
 }
 
-func WriteWithRetry(ctx context.Context, write func(context.Context, interface{}) error, message *Message, item interface{}, retries []time.Duration, logs...func(context.Context, string)) error {
+func WriteWithRetry(ctx context.Context, write func(context.Context, interface{}) error, data []byte, item interface{}, retries []time.Duration, logs...func(context.Context, string)) error {
 	var logError func(context.Context, string)
 	if len(logs) > 0 {
 		logError = logs[0]
@@ -157,18 +161,18 @@ func WriteWithRetry(ctx context.Context, write func(context.Context, interface{}
 			i = i + 1
 			er2 := write(ctx, item)
 			if er2 == nil && logError != nil {
-				logError(ctx, fmt.Sprintf("Write successfully after %d retries %s", i, message.Data))
+				logError(ctx, fmt.Sprintf("Write successfully after %d retries %s", i, data))
 			}
 			return er2
 		}, logError)
 		if err != nil && logError != nil {
-			logError(ctx, fmt.Sprintf("Failed to write after %d retries: %s. Error: %s.", len(retries), message.Data, er1.Error()))
+			logError(ctx, fmt.Sprintf("Failed to write after %d retries: %s. Error: %s.", len(retries), data, er1.Error()))
 		}
 		return err
 	}
 	return nil
 }
-func Write(ctx context.Context, write func(context.Context, interface{}) error, message *Message, item interface{}, handleError func(context.Context, *Message) error, retry func(context.Context, *Message) error, limitRetry int, retryCountName string, logs ...func(context.Context, string)) error {
+func Write(ctx context.Context, write func(context.Context, interface{}) error, data []byte, attrs map[string]string, item interface{}, handleError func(context.Context, []byte, map[string]string) error, retry func(context.Context, []byte, map[string]string) error, limitRetry int, retryCountName string, logs ...func(context.Context, string)) error {
 	var logError func(context.Context, string)
 	var logInfo func(context.Context, string)
 	if len(logs) > 0 {
@@ -182,21 +186,21 @@ func Write(ctx context.Context, write func(context.Context, interface{}) error, 
 		return er3
 	}
 	if logError != nil {
-		logError(ctx, fmt.Sprintf("Fail to write %s . Error: %s", message.Data, er3.Error()))
+		logError(ctx, fmt.Sprintf("Fail to write %s . Error: %s", data, er3.Error()))
 	}
 
 	if retry == nil {
 		if handleError != nil {
-			handleError(ctx, message)
+			handleError(ctx, data, attrs)
 		}
 		return er3
 	}
 	retryCount := 0
-	if message.Attributes == nil {
-		message.Attributes = make(map[string]string)
+	if attrs == nil {
+		attrs = make(map[string]string)
 	} else {
 		var er4 error
-		retryCount, er4 = strconv.Atoi(message.Attributes[retryCountName])
+		retryCount, er4 = strconv.Atoi(attrs[retryCountName])
 		if er4 != nil {
 			retryCount = 0
 		}
@@ -204,22 +208,33 @@ func Write(ctx context.Context, write func(context.Context, interface{}) error, 
 	retryCount++
 	if retryCount > limitRetry {
 		if logInfo != nil {
-			l := logMessage{Id: message.Id, Data: message.Data, Attributes: message.Attributes}
-			logInfo(ctx, fmt.Sprintf("Retry: %d . Retry limitation: %d . Message: %s.", retryCount, limitRetry, l))
+			if attrs == nil || len(attrs) == 0 {
+				logInfo(ctx, fmt.Sprintf("Retry: %d . Retry limitation: %d . Message: %s.", retryCount, limitRetry, data))
+			} else {
+				logInfo(ctx, fmt.Sprintf("Retry: %d . Retry limitation: %d . Message: %s %s.", retryCount, limitRetry, data, attrs))
+			}
+
 		}
 		if handleError != nil {
-			handleError(ctx, message)
+			handleError(ctx, data, attrs)
 		}
 	} else {
 		if logInfo != nil {
-			l := logMessage{Id: message.Id, Data: message.Data, Attributes: message.Attributes}
-			logInfo(ctx, fmt.Sprintf("Retry: %d . Message: %s.", retryCount, l))
+			if attrs == nil || len(attrs) == 0 {
+				logInfo(ctx, fmt.Sprintf("Retry: %d . Message: %s.", retryCount, data))
+			} else {
+				logInfo(ctx, fmt.Sprintf("Retry: %d . Message: %s %s.", retryCount, data, attrs))
+			}
 		}
-		message.Attributes[retryCountName] = strconv.Itoa(retryCount)
-		er2 := retry(ctx, message)
+		attrs[retryCountName] = strconv.Itoa(retryCount)
+		er2 := retry(ctx, data, attrs)
 		if er2 != nil {
 			if logError != nil {
-				logError(ctx, fmt.Sprintf("Cannot retry %s . Error: %s", message, er2.Error()))
+				if attrs == nil || len(attrs) == 0 {
+					logError(ctx, fmt.Sprintf("Cannot retry %s . Error: %s", data, er2.Error()))
+				} else {
+					logError(ctx, fmt.Sprintf("Cannot retry %s %s. Error: %s", data, attrs, er2.Error()))
+				}
 			}
 		}
 	}

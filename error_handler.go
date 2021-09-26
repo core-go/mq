@@ -22,10 +22,13 @@ type logMessage struct {
 	Attributes map[string]string `json:"attributes,omitempty" gorm:"column:attributes" bson:"attributes,omitempty" dynamodbav:"attributes,omitempty" firestore:"attributes,omitempty"`
 }
 
-func (w *ErrorHandler) HandleError(ctx context.Context, message *Message) error {
-	if w.LogError != nil && message != nil {
-		l := logMessage{Id: message.Id, Data: message.Data, Attributes: message.Attributes}
-		w.LogError(ctx, fmt.Sprintf("Fail to consume message: %s", l))
+func (w *ErrorHandler) HandleError(ctx context.Context, data []byte, attrs map[string]string) error {
+	if w.LogError != nil && data != nil {
+		if attrs == nil || len(attrs) == 0 {
+			w.LogError(ctx, fmt.Sprintf("Fail to consume message: %s", data))
+		} else {
+			w.LogError(ctx, fmt.Sprintf("Fail to consume message: %s %s", data, attrs))
+		}
 	}
 	return nil
 }

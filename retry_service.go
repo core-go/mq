@@ -19,8 +19,8 @@ func NewRetryService(send func(context.Context, []byte, map[string]string) (stri
 	return s
 }
 
-func (s *RetryService) Retry(ctx context.Context, message *Message) error {
-	_, err := s.send(ctx, message.Data, message.Attributes)
+func (s *RetryService) Retry(ctx context.Context, data []byte, header map[string]string) error {
+	_, err := s.send(ctx, data, header)
 	if err != nil {
 		if s.LogError != nil {
 			s.LogError(ctx, `Retry put to mq error: `+err.Error())
