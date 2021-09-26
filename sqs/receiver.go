@@ -73,13 +73,3 @@ func (c *Receiver) Receive(ctx context.Context, handle func(context.Context, *mq
 		}
 		goto loop
 }
-
-func PtrToMap(m map[string]*string) map[string]string {
-	attributes := make(map[string]string)
-	for k, v := range m {
-		if v != nil {
-			attributes[k] = *v
-		}
-	}
-	return attributes
-}

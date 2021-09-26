@@ -4,7 +4,6 @@ import (
 	"context"
 	"github.com/core-go/mq"
 	"github.com/go-stomp/stomp"
-	"github.com/go-stomp/stomp/frame"
 	"time"
 )
 
@@ -47,13 +46,4 @@ func (c *Subscriber) Subscribe(ctx context.Context, handle func(context.Context,
 		}
 		handle(ctx, &message, nil)
 	}
-}
-
-func HeaderToMap(header *frame.Header) map[string]string {
-	attributes := make(map[string]string, 0)
-	for i := 0; i < header.Len(); i++ {
-		key, value := header.GetAt(i)
-		attributes[key] = value
-	}
-	return attributes
 }

@@ -2,11 +2,18 @@ package ibmmq
 
 import (
 	"context"
-	"github.com/core-go/mq"
 	"github.com/ibm-messaging/mq-golang/v5/ibmmq"
 )
 
-type Subscriber struct {
+type SubscriberConfig struct {
+	ManagerName    string `mapstructure:"manager_name" json:"managerName,omitempty" gorm:"column:managerName" bson:"managerName,omitempty" dynamodbav:"managerName,omitempty" firestore:"managerName,omitempty"`
+	ChannelName    string `mapstructure:"channel_name" json:"channelName,omitempty" gorm:"column:channelname" bson:"channelName,omitempty" dynamodbav:"channelName,omitempty" firestore:"channelName,omitempty"`
+	ConnectionName string `mapstructure:"connection_name" json:"connectionName,omitempty" gorm:"column:connectionname" bson:"connectionName,omitempty" dynamodbav:"connectionName,omitempty" firestore:"connectionName,omitempty"`
+	QueueName      string `mapstructure:"queue_name" json:"queueName,omitempty" gorm:"column:queuename" bson:"queueName,omitempty" dynamodbav:"queueName,omitempty" firestore:"queueName,omitempty"`
+	WaitInterval   int32  `mapstructure:"wait_interval" json:"waitInterval,omitempty" gorm:"column:waitinterval" bson:"waitInterval,omitempty" dynamodbav:"waitInterval,omitempty" firestore:"waitInterval,omitempty"`
+}
+
+type SimpleSubscriber struct {
 	QueueManager *ibmmq.MQQueueManager
 	QueueName    string
 	sd           *ibmmq.MQSD
@@ -14,7 +21,9 @@ type Subscriber struct {
 	gmo          *ibmmq.MQGMO
 }
 
-func NewSubscriberByConfig(c SubscriberConfig, auth MQAuth) (*Subscriber, error) {
+var qObjectForC ibmmq.MQObject
+
+func NewSimpleSubscriberByConfig(c SubscriberConfig, auth MQAuth) (*SimpleSubscriber, error) {
 	c2 := QueueConfig{
 		ManagerName:    c.ManagerName,
 		ChannelName:    c.ChannelName,
@@ -25,18 +34,18 @@ func NewSubscriberByConfig(c SubscriberConfig, auth MQAuth) (*Subscriber, error)
 	if err != nil {
 		return nil, err
 	}
-	return NewSubscriber(mgr, c.QueueName, c.WaitInterval), nil
+	return NewSimpleSubscriber(mgr, c.QueueName, c.WaitInterval), nil
 }
-func NewSubscriber(mgr *ibmmq.MQQueueManager, queueName string, waitInterval int32) *Subscriber {
+func NewSimpleSubscriber(mgr *ibmmq.MQQueueManager, queueName string, waitInterval int32) *SimpleSubscriber {
 	sd := ibmmq.NewMQSD()
 	sd.Options = ibmmq.MQSO_CREATE |
 		ibmmq.MQSO_NON_DURABLE |
 		ibmmq.MQSO_MANAGED
 
 	sd.ObjectString = queueName
-	return NewSubscriberByMQSD(mgr, queueName, sd, waitInterval)
+	return NewSimpleSubscriberByMQSD(mgr, queueName, sd, waitInterval)
 }
-func NewSubscriberByMQSD(manager *ibmmq.MQQueueManager, queueName string, sd *ibmmq.MQSD, waitInterval int32) *Subscriber {
+func NewSimpleSubscriberByMQSD(manager *ibmmq.MQQueueManager, queueName string, sd *ibmmq.MQSD, waitInterval int32) *SimpleSubscriber {
 	md := ibmmq.NewMQMD()
 
 	// The GET requires control structures, the Message Descriptor (MQMD)
@@ -49,10 +58,10 @@ func NewSubscriberByMQSD(manager *ibmmq.MQQueueManager, queueName string, sd *ib
 	// Set options to wait for a maximum of 3 seconds for any new message to arrive
 	gmo.Options |= ibmmq.MQGMO_WAIT
 	gmo.WaitInterval = waitInterval // The WaitInterval is in milliseconds
-	return &Subscriber{manager, queueName, sd, md, gmo}
+	return &SimpleSubscriber{manager, queueName, sd, md, gmo}
 }
 
-func (c *Subscriber) Subscribe(ctx context.Context, handle func(context.Context, *mq.Message, error) error) {
+func (c *SimpleSubscriber) Subscribe(ctx context.Context, handle func(context.Context, []byte, map[string]string, error) error) {
 	// Create the Object Descriptor that allows us to give the topic name
 
 	// The qObject is filled in with a reference to the queue created automatically
@@ -70,7 +79,7 @@ func (c *Subscriber) Subscribe(ctx context.Context, handle func(context.Context,
 			msgAvail = false
 			mqReturn := err.(*ibmmq.MQReturn)
 			if mqReturn.MQRC != ibmmq.MQRC_NO_MSG_AVAILABLE {
-				handle(ctx, nil, err)
+				handle(ctx, nil, nil, err)
 			} else {
 				// If there's no message available, then I won't treat that as a real error as
 				// it's an expected situation
@@ -78,10 +87,7 @@ func (c *Subscriber) Subscribe(ctx context.Context, handle func(context.Context,
 			}
 		} else {
 			msgAvail = true
-			msg := mq.Message{
-				Data: buffer,
-			}
-			handle(ctx, &msg, err)
+			handle(ctx, buffer, nil, err)
 		}
 	}
 }

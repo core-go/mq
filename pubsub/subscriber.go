@@ -34,16 +34,6 @@ func NewSubscriberByConfig(ctx context.Context, c SubscriberConfig, ackOnConsume
 	}
 }
 
-func ConfigureSubscription(subscription *pubsub.Subscription, c SubscriptionConfig) *pubsub.Subscription {
-	if c.MaxOutstandingMessages > 0 {
-		subscription.ReceiveSettings.MaxOutstandingMessages = c.MaxOutstandingMessages
-	}
-	if c.NumGoroutines > 0 {
-		subscription.ReceiveSettings.NumGoroutines = c.NumGoroutines
-	}
-	return subscription
-}
-
 func (c *Subscriber) Subscribe(ctx context.Context, handle func(context.Context, *mq.Message, error) error) {
 	er1 := c.Subscription.Receive(ctx, func(ctx2 context.Context, m *pubsub.Message) {
 		message := mq.Message{

@@ -55,11 +55,3 @@ func (c *Consumer) Consume(ctx context.Context, handle func(context.Context, *mq
 		}
 	}
 }
-
-func TableToMap(header amqp.Table) map[string]string {
-	attributes := make(map[string]string, 0)
-	for k, v := range header {
-		attributes[k] = v.(string)
-	}
-	return attributes
-}

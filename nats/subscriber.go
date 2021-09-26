@@ -1,11 +1,11 @@
 package nats
 
 import (
-	"context"
-	"github.com/core-go/mq"
-	"github.com/nats-io/nats.go"
-	"net/http"
-	"runtime"
+"context"
+"github.com/core-go/mq"
+"github.com/nats-io/nats.go"
+"net/http"
+"runtime"
 )
 
 type Subscriber struct {
@@ -59,14 +59,4 @@ func (c *Subscriber) Subscribe(ctx context.Context, handle func(context.Context,
 		c.Conn.Flush()
 		runtime.Goexit()
 	}
-}
-
-func HeaderToMap(header http.Header) map[string]string {
-	attributes := make(map[string]string, 0)
-	for name, values := range header {
-		for _, value := range values {
-			attributes[name] = value
-		}
-	}
-	return attributes
 }
