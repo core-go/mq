@@ -88,7 +88,7 @@ func newQueueManagerByConfig(c QueueConfig, auth MQAuth) (*ibmmq.MQQueueManager,
 	cno.Options = ibmmq.MQCNO_CLIENT_BINDING + ibmmq.MQCNO_RECONNECT + ibmmq.MQCNO_HANDLE_SHARE_BLOCK
 	cno.SecurityParms = csp
 
-	mgr, err := ibmmq.Connx(c.ManagerName, cno)
+	mgr, err := ibmmq.Connx(c.QueueName, cno)
 	return &mgr, err
 }
 
