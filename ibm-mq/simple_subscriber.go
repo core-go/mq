@@ -18,9 +18,6 @@ type SubscriberConfig struct {
 type SimpleSubscriber struct {
 	QueueManager *ibmmq.MQQueueManager
 	QueueName    string
-	sd           *ibmmq.MQSD
-	md           *ibmmq.MQMD
-	gmo          *ibmmq.MQGMO
 	WaitInterval int32
 	Topic        string
 	LogError     func(context.Context, string)
@@ -53,24 +50,9 @@ func NewSimpleSubscriberByMQSD(manager *ibmmq.MQQueueManager, queueName string, 
 	if len(options) > 0 {
 		logError = options[0]
 	}
-	md := ibmmq.NewMQMD()
-
-	// The GET requires control structures, the Message Descriptor (MQMD)
-	// and Get Options (MQGMO). Create those with default values.
-	gmo := ibmmq.NewMQGMO()
-	// The default options are OK, but it's always
-	// a good idea to be explicit about transactional boundaries as
-	// not all platforms behave the same way.
-	gmo.Options = ibmmq.MQGMO_NO_SYNCPOINT
-	// Set options to wait for a maximum of 3 seconds for any new message to arrive
-	gmo.Options |= ibmmq.MQGMO_WAIT
-	gmo.WaitInterval = waitInterval // The WaitInterval is in milliseconds
 	return &SimpleSubscriber{
 		QueueManager: manager,
 		QueueName:    queueName,
-		sd:           sd,
-		md:           md,
-		gmo:          gmo,
 		WaitInterval: waitInterval,
 		Topic:        topic,
 		LogError:     logError,
@@ -100,11 +82,16 @@ func (c *SimpleSubscriber) Subscribe(ctx context.Context, handle func(context.Co
 		msgAvail := true
 		for msgAvail == true && err == nil {
 			mqmd := ibmmq.NewMQMD()
+			// The GET requires control structures, the Message Descriptor (MQMD)
+			// and Get Options (MQGMO). Create those with default values.
 			gmo := ibmmq.NewMQGMO()
-
+			// The default options are OK, but it's always
+			// a good idea to be explicit about transactional boundaries as
+			// not all platforms behave the same way.
 			gmo.Options = ibmmq.MQGMO_NO_SYNCPOINT
+			// Set options to wait for a maximum of 3 seconds for any new message to arrive
 			gmo.Options |= ibmmq.MQGMO_WAIT
-			gmo.WaitInterval = c.WaitInterval
+			gmo.WaitInterval = c.WaitInterval  // The WaitInterval is in milliseconds
 			buffer := make([]byte, 1024)
 			l, err := qObject.Get(mqmd, gmo, buffer)
 
