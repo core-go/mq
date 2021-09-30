@@ -13,8 +13,6 @@ type Subscriber struct {
 	sd           *ibmmq.MQSD
 	md           *ibmmq.MQMD
 	gmo          *ibmmq.MQGMO
-	qObject      *ibmmq.MQObject
-	init         bool
 	WaitInterval int32
 	Topic        string
 	LogError     func(context.Context, string)
@@ -72,13 +70,6 @@ func NewSubscriberByMQSD(manager *ibmmq.MQQueueManager, queueName string, topic 
 }
 
 func (c *Subscriber) Subscribe(ctx context.Context, handle func(context.Context, *mq.Message, error) error) {
-	// Create the Object Descriptor that allows us to give the topic name
-
-	if c.init == false {
-		var qObjectForC ibmmq.MQObject
-		c.qObject = &qObjectForC
-		c.init = true
-	}
 	// The qObject is filled in with a reference to the queue created automatically
 	// for publications. It will be used in a moment for the Get operations
 	md := ibmmq.NewMQOD()
