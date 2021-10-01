@@ -28,7 +28,7 @@ func NewSubscriberByConfig(c SubscriberConfig, auth MQAuth, options ...func(cont
 	}
 	return NewSubscriber(mgr, c.QueueName, c.Topic, c.WaitInterval, options...), nil
 }
-func NewSubscriber(mgr *ibmmq.MQQueueManager, topic string, queueName string, waitInterval int32, options ...func(context.Context, string)) *Subscriber {
+func NewSubscriber(mgr *ibmmq.MQQueueManager, queueName string, topic string, waitInterval int32, options ...func(context.Context, string)) *Subscriber {
 	sd := ibmmq.NewMQSD()
 	sd.Options = ibmmq.MQSO_CREATE |
 		ibmmq.MQSO_NON_DURABLE |
