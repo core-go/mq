@@ -63,7 +63,7 @@ func (s *HealthChecker) Name() string {
 func (s *HealthChecker) Check(ctx context.Context) (map[string]interface{}, error) {
 	res := make(map[string]interface{})
 	if s.queueManager == nil {
-		conn, err := newQueueManagerByConfig(*s.queue, *s.auth)
+		conn, err := NewQueueManagerByConfig(*s.queue, *s.auth)
 		if err != nil {
 			return res, err
 		}

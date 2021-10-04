@@ -33,6 +33,7 @@ type QueueConfig struct {
 	ChannelName    string      `mapstructure:"channel_name" json:"channelName,omitempty" gorm:"column:channelname" bson:"channelName,omitempty" dynamodbav:"channelName,omitempty" firestore:"channelName,omitempty"`
 	ConnectionName string      `mapstructure:"connection_name" json:"connectionName,omitempty" gorm:"column:connectionname" bson:"connectionName,omitempty" dynamodbav:"connectionName,omitempty" firestore:"connectionName,omitempty"`
 	QueueName      string      `mapstructure:"queue_name" json:"queueName,omitempty" gorm:"column:queuename" bson:"queueName,omitempty" dynamodbav:"queueName,omitempty" firestore:"queueName,omitempty"`
+	Put            bool        `mapstructure:"put" json:"put,omitempty" gorm:"column:queuename" bson:"put,omitempty" dynamodbav:"put,omitempty" firestore:"put,omitempty"`
 	Retry          RetryConfig `mapstructure:"retry" json:"retry,omitempty" gorm:"column:retry" bson:"retry,omitempty" dynamodbav:"retry,omitempty" firestore:"retry,omitempty"`
 }
 
@@ -50,7 +51,7 @@ type RetryConfig struct {
 
 func NewQueueManagerWithRetries(c QueueConfig, auth MQAuth) (*ibmmq.MQQueueManager, error) {
 	if c.Retry.Retry1 <= 0 {
-		return newQueueManagerByConfig(c, auth)
+		return NewQueueManagerByConfig(c, auth)
 	} else {
 		durations := DurationsFromValue(c.Retry, "Retry", 9)
 		return NewQueueManager(c, auth, durations...)
@@ -58,16 +59,16 @@ func NewQueueManagerWithRetries(c QueueConfig, auth MQAuth) (*ibmmq.MQQueueManag
 }
 func NewQueueManager(c QueueConfig, auth MQAuth, retries ...time.Duration) (*ibmmq.MQQueueManager, error) {
 	if len(retries) == 0 {
-		return newQueueManagerByConfig(c, auth)
+		return NewQueueManagerByConfig(c, auth)
 	} else {
-		db, er1 := newQueueManagerByConfig(c, auth)
+		db, er1 := NewQueueManagerByConfig(c, auth)
 		if er1 == nil {
 			return db, er1
 		}
 		i := 0
 		err := Retry(retries, func() (err error) {
 			i = i + 1
-			db2, er2 := newQueueManagerByConfig(c, auth)
+			db2, er2 := NewQueueManagerByConfig(c, auth)
 			if er2 == nil {
 				db = db2
 			}
@@ -79,7 +80,7 @@ func NewQueueManager(c QueueConfig, auth MQAuth, retries ...time.Duration) (*ibm
 		return db, err
 	}
 }
-func newQueueManagerByConfig(c QueueConfig, auth MQAuth) (*ibmmq.MQQueueManager, error) {
+func NewQueueManagerByConfig(c QueueConfig, auth MQAuth) (*ibmmq.MQQueueManager, error) {
 	cd := NewMQCDByChannelAndConnection(c.ChannelName, c.ConnectionName)
 	csp := NewMQCSPByConfig(auth)
 
@@ -88,8 +89,13 @@ func newQueueManagerByConfig(c QueueConfig, auth MQAuth) (*ibmmq.MQQueueManager,
 	cno.Options = ibmmq.MQCNO_CLIENT_BINDING + ibmmq.MQCNO_RECONNECT + ibmmq.MQCNO_HANDLE_SHARE_BLOCK
 	cno.SecurityParms = csp
 
-	mgr, err := ibmmq.Connx(c.QueueName, cno)
-	return &mgr, err
+	if c.Put == true {
+		mgr, err := ibmmq.Connx(c.ManagerName, cno)
+		return &mgr, err
+	} else {
+		mgr, err := ibmmq.Connx(c.QueueName, cno)
+		return &mgr, err
+	}
 }
 
 func MakeDurations(vs []int64) []time.Duration {

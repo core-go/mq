@@ -15,7 +15,7 @@ func NewPublisher(manager *ibmmq.MQQueueManager, queueName string) *Publisher {
 }
 
 func NewPublisherByConfig(c QueueConfig, auth MQAuth) (*Publisher, error) {
-	mgr, err := newQueueManagerByConfig(c, auth)
+	mgr, err := NewQueueManagerByConfig(c, auth)
 	if err != nil {
 		return nil, err
 	}
@@ -24,8 +24,6 @@ func NewPublisherByConfig(c QueueConfig, auth MQAuth) (*Publisher, error) {
 		QueueName:    c.QueueName,
 	}, nil
 }
-
-var qObjectForP ibmmq.MQObject
 
 func (p *Publisher) Publish(ctx context.Context, data []byte, attributes map[string]string) (string, error) {
 	openOptions := ibmmq.MQOO_OUTPUT

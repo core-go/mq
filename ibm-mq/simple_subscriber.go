@@ -30,7 +30,7 @@ func NewSimpleSubscriberByConfig(c SubscriberConfig, auth MQAuth, options ...fun
 		ConnectionName: c.ConnectionName,
 		QueueName:      c.QueueName,
 	}
-	mgr, err := newQueueManagerByConfig(c2, auth)
+	mgr, err := NewQueueManagerByConfig(c2, auth)
 	if err != nil {
 		return nil, err
 	}
