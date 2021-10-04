@@ -89,13 +89,9 @@ func NewQueueManagerByConfig(c QueueConfig, auth MQAuth) (*ibmmq.MQQueueManager,
 	cno.Options = ibmmq.MQCNO_CLIENT_BINDING + ibmmq.MQCNO_RECONNECT + ibmmq.MQCNO_HANDLE_SHARE_BLOCK
 	cno.SecurityParms = csp
 
-	if c.Put == true {
-		mgr, err := ibmmq.Connx(c.ManagerName, cno)
-		return &mgr, err
-	} else {
-		mgr, err := ibmmq.Connx(c.QueueName, cno)
-		return &mgr, err
-	}
+	mgr, err := ibmmq.Connx(c.ManagerName, cno)
+	return &mgr, err
+
 }
 
 func MakeDurations(vs []int64) []time.Duration {
