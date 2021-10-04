@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"github.com/ibm-messaging/mq-golang/v5/ibmmq"
-	"strings"
 )
 
 type SubscriberConfig struct {
@@ -82,7 +81,6 @@ func (c *SimpleSubscriber) Subscribe(ctx context.Context, handle func(context.Co
 	for {
 		msgAvail := true
 		for msgAvail == true && err == nil {
-			var datalen int
 			mqmd := ibmmq.NewMQMD()
 			// The GET requires control structures, the Message Descriptor (MQMD)
 			// and Get Options (MQGMO). Create those with default values.
@@ -95,21 +93,18 @@ func (c *SimpleSubscriber) Subscribe(ctx context.Context, handle func(context.Co
 			gmo.Options |= ibmmq.MQGMO_WAIT
 			gmo.WaitInterval = c.WaitInterval  // The WaitInterval is in milliseconds
 			buffer := make([]byte, 0, 1024)
-			buffer, datalen, err = qObject.GetSlice(mqmd, gmo, buffer)
+			buffer, _, err = qObject.GetSlice(mqmd, gmo, buffer)
 
 			if err != nil {
 				msgAvail = false
 				mqReturn := err.(*ibmmq.MQReturn)
 				if mqReturn.MQRC != ibmmq.MQRC_NO_MSG_AVAILABLE {
-					fmt.Println("NO_MSG_AVAILABLE")
 					handle(ctx, nil, nil, err)
 				} else {
 					err = nil
 				}
 			} else {
 				msgAvail = true
-				fmt.Printf("Got message of length %d: ", datalen)
-				fmt.Println(strings.TrimSpace(string(buffer)))
 				handle(ctx, buffer, nil, err)
 			}
 		}

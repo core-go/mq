@@ -74,7 +74,6 @@ func (c *Subscriber) Subscribe(ctx context.Context, handle func(context.Context,
 	for {
 		msgAvail := true
 		for msgAvail == true && err == nil {
-			var datalen int
 			mqmd := ibmmq.NewMQMD()
 			// The GET requires control structures, the Message Descriptor (MQMD)
 			// and Get Options (MQGMO). Create those with default values.
@@ -87,21 +86,18 @@ func (c *Subscriber) Subscribe(ctx context.Context, handle func(context.Context,
 			gmo.Options |= ibmmq.MQGMO_WAIT // The WaitInterval is in milliseconds
 			gmo.WaitInterval = c.WaitInterval
 			buffer := make([]byte, 0, 1024)
-			buffer, datalen, err = qObject.GetSlice(mqmd, gmo, buffer)
+			buffer, _, err = qObject.GetSlice(mqmd, gmo, buffer)
 
 			if err != nil {
 				msgAvail = false
 				mqReturn := err.(*ibmmq.MQReturn)
 				if mqReturn.MQRC != ibmmq.MQRC_NO_MSG_AVAILABLE {
-					fmt.Println("NO_MSG_AVAILABLE")
 					handle(ctx, nil, err)
 				} else {
 					err = nil
 				}
 			} else {
 				msgAvail = true
-				fmt.Printf("Got message of length %d: ", datalen)
-				fmt.Println(strings.TrimSpace(string(buffer)))
 				msg := mq.Message{Data: buffer}
 				handle(ctx, &msg, err)
 			}
