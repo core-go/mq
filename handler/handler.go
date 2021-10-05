@@ -3,6 +3,7 @@ package handler
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
 	"net/http"
 )
@@ -44,8 +45,10 @@ func (h *SenderHandler) Receive(w http.ResponseWriter, r *http.Request) {
 	}
 }
 func respond(w http.ResponseWriter, result interface{}) {
-	response, _ := json.Marshal(result)
-	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	w.Write(response)
+	w.Header().Set("Content-Type", "application/json")
+	err := json.NewEncoder(w).Encode(result)
+	if err != nil {
+		fmt.Println(err)
+	}
 }
