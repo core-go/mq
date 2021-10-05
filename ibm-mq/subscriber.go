@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"github.com/core-go/mq"
 	"github.com/ibm-messaging/mq-golang/v5/ibmmq"
-	"strings"
 )
 
 type Subscriber struct {
