@@ -15,7 +15,7 @@ type Publisher struct {
 	Topic  *pubsub.Topic
 }
 
-func NewPublisher(ctx context.Context, client *pubsub.Client, topicId string, c TopicConfig) *Publisher {
+func NewPublisher(ctx context.Context, client *pubsub.Client, topicId string, c *TopicConfig) *Publisher {
 	topic := client.Topic(topicId)
 	CheckTopicPermission(ctx, topic.IAM(), "pubsub.topics.publish")
 	return &Publisher{Client: client, Topic: ConfigureTopic(topic, c)}
@@ -38,18 +38,20 @@ func NewPublisherByConfig(ctx context.Context, c PublisherConfig) (*Publisher, e
 	}
 }
 
-func ConfigureTopic(topic *pubsub.Topic, c TopicConfig) *pubsub.Topic {
-	if c.CountThreshold > 0 {
-		topic.PublishSettings.DelayThreshold = time.Duration(c.CountThreshold) * time.Millisecond
-	}
-	if c.DelayThreshold > 0 {
-		topic.PublishSettings.CountThreshold = c.DelayThreshold
-	}
-	if c.ByteThreshold > 0 {
-		topic.PublishSettings.ByteThreshold = c.ByteThreshold
-	}
-	if c.NumGoroutines > 0 {
-		topic.PublishSettings.NumGoroutines = c.NumGoroutines
+func ConfigureTopic(topic *pubsub.Topic, c *TopicConfig) *pubsub.Topic {
+	if c != nil {
+		if c.CountThreshold > 0 {
+			topic.PublishSettings.DelayThreshold = time.Duration(c.CountThreshold) * time.Millisecond
+		}
+		if c.DelayThreshold > 0 {
+			topic.PublishSettings.CountThreshold = c.DelayThreshold
+		}
+		if c.ByteThreshold > 0 {
+			topic.PublishSettings.ByteThreshold = c.ByteThreshold
+		}
+		if c.NumGoroutines > 0 {
+			topic.PublishSettings.NumGoroutines = c.NumGoroutines
+		}
 	}
 	return topic
 }
