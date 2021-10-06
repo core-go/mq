@@ -10,37 +10,54 @@ type RetrySender struct {
 	send       func(ctx context.Context, data []byte, attributes map[string]string) (string, error)
 	Retries    []time.Duration
 	Log        func(context.Context, string)
+	Error      func(ctx context.Context, data []byte, attrs map[string]string) error
 	Goroutines bool
 }
 
-func NewSenderByConfig(send func(context.Context, []byte, map[string]string) (string, error), goroutines bool, log func(context.Context, string), c *RetryConfig) *RetrySender {
+func NewSenderByConfig(send func(context.Context, []byte, map[string]string) (string, error), goroutines bool, log func(context.Context, string), c *RetryConfig, options... func(context.Context, []byte, map[string]string) error) *RetrySender {
+	var handlerError func(context.Context, []byte, map[string]string) error
+	if len(options) > 0 {
+		handlerError = options[0]
+	}
 	if c == nil {
-		return &RetrySender{send: send, Log: log, Goroutines: goroutines}
+		return &RetrySender{send: send, Log: log, Goroutines: goroutines, Error: handlerError}
 	} else {
 		retries := DurationsFromValue(*c, "Retry", 20)
 		if len(retries) == 0 {
 			return &RetrySender{send: send, Log: log, Goroutines: goroutines}
 		}
-		return &RetrySender{send: send, Log: log, Retries: retries, Goroutines: goroutines}
+		return &RetrySender{send: send, Log: log, Retries: retries, Goroutines: goroutines, Error: handlerError}
 	}
 }
-func NewSender(send func(context.Context, []byte, map[string]string) (string, error), goroutines bool, log func(context.Context, string), retries ...time.Duration) *RetrySender {
-	return &RetrySender{send: send, Log: log, Retries: retries, Goroutines: goroutines}
+func NewSender(send func(context.Context, []byte, map[string]string) (string, error), goroutines bool, log func(context.Context, string), retries []time.Duration, options... func(context.Context, []byte, map[string]string) error) *RetrySender {
+	var handlerError func(context.Context, []byte, map[string]string) error
+	if len(options) > 0 {
+		handlerError = options[0]
+	}
+	return &RetrySender{send: send, Log: log, Retries: retries, Goroutines: goroutines, Error: handlerError}
 }
 func (c *RetrySender) Send(ctx context.Context, data []byte, attributes map[string]string) (string, error) {
 	if !c.Goroutines {
-		return Send(ctx, c.send, data, attributes, c.Log, c.Retries...)
+		return Send(ctx, c.send, data, attributes, c.Log, c.Error, c.Retries...)
 	} else {
-		go Send(ctx, c.send, data, attributes, c.Log, c.Retries...)
+		go Send(ctx, c.send, data, attributes, c.Log, c.Error, c.Retries...)
 		return "", nil
 	}
 }
-func Send(ctx context.Context, send func(context.Context, []byte, map[string]string) (string, error), data []byte, attributes map[string]string, log func(context.Context, string), retries ...time.Duration) (string, error) {
+func Send(ctx context.Context, send func(context.Context, []byte, map[string]string) (string, error), data []byte, attributes map[string]string, log func(context.Context, string), handlerError func(context.Context, []byte, map[string]string) error, retries ...time.Duration) (string, error) {
 	l := len(retries)
 	if l == 0 {
-		return send(ctx, data, attributes)
+		r, err := send(ctx, data, attributes)
+		if err != nil && handlerError != nil {
+			handlerError(ctx, data, attributes)
+		}
+		return r, err
 	} else {
-		return SendWithRetries(ctx, send, data, attributes, retries, log)
+		r, err := SendWithRetries(ctx, send, data, attributes, retries, log)
+		if err != nil && handlerError != nil {
+			handlerError(ctx, data, attributes)
+		}
+		return r, err
 	}
 }
 
