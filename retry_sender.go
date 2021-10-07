@@ -61,15 +61,15 @@ func Send(ctx context.Context, send func(context.Context, []byte, map[string]str
 	}
 }
 
-func SendWithRetries(ctx context.Context, produce func(context.Context, []byte, map[string]string) (string, error), data []byte, attributes map[string]string, retries []time.Duration, log func(context.Context, string)) (string, error) {
-	id, er1 := produce(ctx, data, attributes)
+func SendWithRetries(ctx context.Context, send func(context.Context, []byte, map[string]string) (string, error), data []byte, attributes map[string]string, retries []time.Duration, log func(context.Context, string)) (string, error) {
+	id, er1 := send(ctx, data, attributes)
 	if er1 == nil {
 		return id, er1
 	}
 	i := 0
 	err := Retry(ctx, retries, func() (err error) {
 		i = i + 1
-		id2, er2 := produce(ctx, data, attributes)
+		id2, er2 := send(ctx, data, attributes)
 		id = id2
 		if er2 == nil && log != nil {
 			log(ctx, fmt.Sprintf("Send successfully after %d retries %s", i, data))
