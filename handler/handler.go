@@ -3,7 +3,6 @@ package handler
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"io/ioutil"
 	"net/http"
 )
@@ -26,7 +25,7 @@ func (h *SenderHandler) Receive(w http.ResponseWriter, r *http.Request) {
 	}
 	l := len(h.Send)
 	if l == 0 {
-		respond(w, h.Response)
+		respond(w, http.StatusOK, h.Response)
 		return
 	}
 	var result string
@@ -39,16 +38,14 @@ func (h *SenderHandler) Receive(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	if len(h.Response) == 0 {
-		respond(w, result)
+		respond(w, http.StatusOK, result)
 	} else {
-		respond(w, h.Response)
+		respond(w, http.StatusOK, h.Response)
 	}
 }
-func respond(w http.ResponseWriter, result interface{}) {
-	w.WriteHeader(http.StatusOK)
+func respond(w http.ResponseWriter, status int, result interface{}) error {
+	w.WriteHeader(status)
 	w.Header().Set("Content-Type", "application/json")
 	err := json.NewEncoder(w).Encode(result)
-	if err != nil {
-		fmt.Println(err)
-	}
+	return err
 }
