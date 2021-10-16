@@ -24,7 +24,7 @@ func BuildInsertStatementsWithVersion(table string, models interface{}, versionI
 		return nil, nil
 	}
 	var strt *Schema
-	if len(options) > 0 {
+	if len(options) > 0 && options[0] != nil {
 		strt = options[0]
 	} else {
 		first := s.Index(0).Interface()
@@ -79,7 +79,7 @@ func BuildToUpdateBatchWithVersion(table string, models interface{}, versionInde
 		return nil, nil
 	}
 	var strt *Schema
-	if len(options) > 0 {
+	if len(options) > 0 && options[0] != nil {
 		strt = options[0]
 	} else {
 		first := s.Index(0).Interface()
@@ -124,7 +124,7 @@ func BuildToInsertBatchWithSchema(table string, models interface{}, driver strin
 	}
 	var cols []FieldDB
 	// var schema map[string]FieldDB
-	if len(options) > 0 {
+	if len(options) > 0 && options[0] != nil {
 		cols = options[0].Columns
 		// schema = options[0].Fields
 	} else {
@@ -283,7 +283,7 @@ func BuildToSaveBatchWithArray(table string, models interface{}, drive string, t
 	}
 	buildParam := GetBuildByDriver(drive)
 	var strt *Schema
-	if len(options) > 0 {
+	if len(options) > 0 && options[0] != nil {
 		strt = options[0]
 	} else {
 		first := s.Index(0).Interface()
