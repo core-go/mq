@@ -9,10 +9,15 @@ type SimpleReaderHandler struct {
 	Topic        []string
 	AckOnConsume bool
 	Handle       func(context.Context, []byte, map[string]string, error) error
+	Convert      func(context.Context, []byte) ([]byte, error)
 }
 
-func NewSimpleReaderHandler(Topic []string, handle func(context.Context, []byte, map[string]string, error) error) *SimpleReaderHandler {
-	return &SimpleReaderHandler{Topic: Topic, AckOnConsume: true, Handle: handle}
+func NewSimpleReaderHandler(Topic []string, handle func(context.Context, []byte, map[string]string, error) error, options...func(context.Context, []byte)([]byte, error)) *SimpleReaderHandler {
+	var convert func(context.Context, []byte)([]byte, error)
+	if len(options) > 0 {
+		convert = options[0]
+	}
+	return &SimpleReaderHandler{Topic: Topic, AckOnConsume: true, Handle: handle, Convert: convert}
 }
 
 // Setup is run at the beginning of a new session, before ConsumeClaim
@@ -34,7 +39,12 @@ func (r *SimpleReaderHandler) ConsumeClaim(session sarama.ConsumerGroupSession, 
 		if r.AckOnConsume {
 			session.MarkMessage(msg, "")
 		}
-		_ = r.Handle(session.Context(), msg.Value, attributes, nil)
+		if r.Convert == nil {
+			_ = r.Handle(session.Context(), msg.Value, attributes, nil)
+		} else {
+			data, err := r.Convert(session.Context(), msg.Value)
+			_ = r.Handle(session.Context(), data, attributes, err)
+		}
 	}
 	return nil
 }

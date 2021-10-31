@@ -10,10 +10,15 @@ type ReaderHandler struct {
 	Topic        []string
 	AckOnConsume bool
 	Handle       func(context.Context, *mq.Message, error) error
+	Convert       func(context.Context, []byte) ([]byte, error)
 }
 
-func NewReaderHandler(Topic []string, handle func(context.Context, *mq.Message, error) error) *ReaderHandler {
-	return &ReaderHandler{Topic: Topic, AckOnConsume: true, Handle: handle}
+func NewReaderHandler(Topic []string, handle func(context.Context, *mq.Message, error) error, options...func(context.Context, []byte)([]byte, error)) *ReaderHandler {
+	var convert func(context.Context, []byte)([]byte, error)
+	if len(options) > 0 {
+		convert = options[0]
+	}
+	return &ReaderHandler{Topic: Topic, AckOnConsume: true, Handle: handle, Convert: convert}
 }
 
 // Setup is run at the beginning of a new session, before ConsumeClaim
@@ -42,7 +47,16 @@ func (r *ReaderHandler) ConsumeClaim(session sarama.ConsumerGroupSession, claim 
 		if r.AckOnConsume {
 			session.MarkMessage(msg, "")
 		}
-		_ = r.Handle(session.Context(), &message, nil)
+		if r.Convert == nil {
+			_ = r.Handle(session.Context(), &message, nil)
+		} else {
+			data, err := r.Convert(session.Context(), msg.Value)
+			if err == nil {
+				message.Data = data
+			}
+			_ = r.Handle(session.Context(), &message, err)
+		}
+
 	}
 	return nil
 }

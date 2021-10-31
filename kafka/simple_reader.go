@@ -11,20 +11,25 @@ import (
 type SimpleReader struct {
 	SimpleReader       *kafka.Reader
 	AckOnConsume bool
+	Convert func(context.Context, []byte)([]byte, error)
 }
 
-func NewSimpleReader(reader *kafka.Reader, ackOnConsume bool) (*SimpleReader, error) {
-	return &SimpleReader{SimpleReader: reader, AckOnConsume: ackOnConsume}, nil
+func NewSimpleReader(reader *kafka.Reader, ackOnConsume bool, options...func(context.Context, []byte)([]byte, error)) (*SimpleReader, error) {
+	var convert func(context.Context, []byte)([]byte, error)
+	if len(options) > 0 {
+		convert = options[0]
+	}
+	return &SimpleReader{SimpleReader: reader, AckOnConsume: ackOnConsume, Convert: convert}, nil
 }
 
-func NewSimpleReaderByConfig(c ReaderConfig, ackOnConsume bool) (*SimpleReader, error) {
+func NewSimpleReaderByConfig(c ReaderConfig, ackOnConsume bool, options...func(context.Context, []byte)([]byte, error)) (*SimpleReader, error) {
 	dialer := GetDialer(c.Client.Username, c.Client.Password, scram.SHA512, &kafka.Dialer{
 		Timeout:   30 * time.Second,
 		DualStack: true,
 		TLS:       &tls.Config{},
 	})
 	reader := NewKafkaReader(c, dialer)
-	return NewSimpleReader(reader, ackOnConsume)
+	return NewSimpleReader(reader, ackOnConsume, options...)
 }
 
 func (c *SimpleReader) Read(ctx context.Context, handle func(context.Context, []byte, map[string]string, error) error) {
@@ -37,7 +42,12 @@ func (c *SimpleReader) Read(ctx context.Context, handle func(context.Context, []
 			if c.AckOnConsume {
 				c.SimpleReader.CommitMessages(ctx, msg)
 			}
-			handle(ctx, msg.Value, attributes, nil)
+			if c.Convert == nil {
+				handle(ctx, msg.Value, attributes, nil)
+			} else {
+				data, err := c.Convert(ctx, msg.Value)
+				handle(ctx, data, attributes, err)
+			}
 		}
 	}
 }

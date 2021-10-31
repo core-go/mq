@@ -13,9 +13,10 @@ type Subscriber struct {
 	WaitInterval int32
 	Topic        string
 	LogError     func(context.Context, string)
+	Convert      func(context.Context, []byte) ([]byte, error)
 }
 
-func NewSubscriberByConfig(c SubscriberConfig, auth MQAuth, options ...func(context.Context, string)) (*Subscriber, error) {
+func NewSubscriberByConfig(c SubscriberConfig, auth MQAuth, convert func(context.Context, []byte) ([]byte, error), options ...func(context.Context, string)) (*Subscriber, error) {
 	c2 := QueueConfig{
 		ManagerName:    c.ManagerName,
 		ChannelName:    c.ChannelName,
@@ -26,18 +27,18 @@ func NewSubscriberByConfig(c SubscriberConfig, auth MQAuth, options ...func(cont
 	if err != nil {
 		return nil, err
 	}
-	return NewSubscriber(mgr, c.QueueName, c.Topic, c.WaitInterval, options...), nil
+	return NewSubscriber(mgr, c.QueueName, c.Topic, c.WaitInterval, convert, options...), nil
 }
-func NewSubscriber(mgr *ibmmq.MQQueueManager, queueName string, topic string, waitInterval int32, options ...func(context.Context, string)) *Subscriber {
+func NewSubscriber(mgr *ibmmq.MQQueueManager, queueName string, topic string, waitInterval int32, convert func(context.Context, []byte) ([]byte, error), options ...func(context.Context, string)) *Subscriber {
 	sd := ibmmq.NewMQSD()
 	sd.Options = ibmmq.MQSO_CREATE |
 		ibmmq.MQSO_NON_DURABLE |
 		ibmmq.MQSO_MANAGED
 
 	sd.ObjectString = queueName
-	return NewSubscriberByMQSD(mgr, queueName, topic, sd, waitInterval, options...)
+	return NewSubscriberByMQSD(mgr, queueName, topic, sd, waitInterval, convert, options...)
 }
-func NewSubscriberByMQSD(manager *ibmmq.MQQueueManager, queueName string, topic string, sd *ibmmq.MQSD, waitInterval int32, options ...func(context.Context, string)) *Subscriber {
+func NewSubscriberByMQSD(manager *ibmmq.MQQueueManager, queueName string, topic string, sd *ibmmq.MQSD, waitInterval int32, convert func(context.Context, []byte) ([]byte, error), options ...func(context.Context, string)) *Subscriber {
 	var logError func(context.Context, string)
 	if len(options) > 0 {
 		logError = options[0]
@@ -48,6 +49,7 @@ func NewSubscriberByMQSD(manager *ibmmq.MQQueueManager, queueName string, topic 
 		WaitInterval: waitInterval,
 		Topic:        topic,
 		LogError:     logError,
+		Convert:      convert,
 	}
 }
 
@@ -98,7 +100,15 @@ func (c *Subscriber) Subscribe(ctx context.Context, handle func(context.Context,
 			} else {
 				msgAvail = true
 				msg := mq.Message{Data: buffer}
-				handle(ctx, &msg, err)
+				if c.Convert == nil {
+					handle(ctx, &msg, err)
+				} else {
+					data, err := c.Convert(ctx, buffer)
+					if err == nil {
+						msg.Data = data
+					}
+					handle(ctx, &msg, err)
+				}
 			}
 		}
 	}

@@ -8,34 +8,46 @@ import (
 type SimplePublisher struct {
 	Client *pubsub.Client
 	Config *TopicConfig
+	Convert func(context.Context, []byte)([]byte, error)
 }
 
-func NewSimplePublisher(ctx context.Context, client *pubsub.Client, c *TopicConfig) *SimplePublisher {
-	return &SimplePublisher{Client: client, Config: c}
+func NewSimplePublisher(client *pubsub.Client, c *TopicConfig, options...func(context.Context, []byte)([]byte, error)) *SimplePublisher {
+	var convert func(context.Context, []byte)([]byte, error)
+	if len(options) > 0 {
+		convert = options[0]
+	}
+	return &SimplePublisher{Client: client, Config: c, Convert: convert}
 }
 
-func NewSimplePublisherByConfig(ctx context.Context, c PublisherConfig) (*SimplePublisher, error) {
+func NewSimplePublisherByConfig(ctx context.Context, c PublisherConfig, options...func(context.Context, []byte)([]byte, error)) (*SimplePublisher, error) {
 	if c.Retry.Retry1 <= 0 {
 		client, err := NewPubSubClient(ctx, []byte(c.Client.Credentials), c.Client.ProjectId)
 		if err != nil {
 			return nil, err
 		}
-		return NewSimplePublisher(ctx, client, c.Topic), nil
+		return NewSimplePublisher(client, c.Topic, options...), nil
 	} else {
 		durations := DurationsFromValue(c.Retry, "Retry", 9)
 		client, err := NewPubSubClientWithRetries(ctx, []byte(c.Client.Credentials), durations, c.Client.ProjectId)
 		if err != nil {
 			return nil, err
 		}
-		return NewSimplePublisher(ctx, client, c.Topic), nil
+		return NewSimplePublisher(client, c.Topic, options...), nil
 	}
 }
 
 func (c *SimplePublisher) Publish(ctx context.Context, topicId string, data []byte, attributes map[string]string) (string, error) {
-	msg := &pubsub.Message{
-		Data: data,
+	var binary = data
+	var err error
+	if c.Convert != nil {
+		binary, err = c.Convert(ctx, data)
+		if err != nil {
+			return "", err
+		}
 	}
-
+	msg := &pubsub.Message{
+		Data: binary,
+	}
 	if attributes != nil {
 		msg.Attributes = attributes
 	}

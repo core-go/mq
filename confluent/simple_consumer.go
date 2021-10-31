@@ -11,25 +11,35 @@ type (
 	SimpleConsumer struct {
 		Consumer *kafka.Consumer
 		Topics   []string
+		Convert  func(context.Context, []byte) ([]byte, error)
 	}
 )
 
-func NewSimpleConsumerByConfig(c ConsumerConfig) (*SimpleConsumer, error) {
+func NewSimpleConsumerByConfig(c ConsumerConfig, options ...func(context.Context, []byte) ([]byte, error)) (*SimpleConsumer, error) {
 	consumer, err := NewKafkaConsumerByConfig(c)
 	if err != nil {
 		fmt.Printf("Failed to create Consumer: %s\n", err)
 		return nil, err
 	}
+	var convert func(context.Context, []byte) ([]byte, error)
+	if len(options) > 0 {
+		convert = options[0]
+	}
 	return &SimpleConsumer{
 		Consumer: consumer,
 		Topics:   []string{c.Topic},
+		Convert:  convert,
 	}, nil
 }
-func NewSimpleConsumer(consumer *kafka.Consumer, topics []string) *SimpleConsumer {
-	return &SimpleConsumer{ Consumer: consumer, Topics: topics }
+func NewSimpleConsumer(consumer *kafka.Consumer, topics []string, options ...func(context.Context, []byte) ([]byte, error)) *SimpleConsumer {
+	var convert func(context.Context, []byte) ([]byte, error)
+	if len(options) > 0 {
+		convert = options[0]
+	}
+	return &SimpleConsumer{Consumer: consumer, Topics: topics, Convert: convert}
 }
 func (c *SimpleConsumer) Consume(ctx context.Context, handle func(context.Context, []byte, map[string]string, error) error) {
-	Consume(ctx, c.Consumer, c.Topics, handle)
+	Consume(ctx, c.Consumer, c.Topics, handle, c.Convert)
 }
 
 func NewKafkaConsumerByConfig(c ConsumerConfig) (*kafka.Consumer, error) {

@@ -10,14 +10,19 @@ type Sender struct {
 	Conn        *stomp.Conn
 	Destination string
 	ContentType string
+	Convert     func(context.Context, []byte) ([]byte, error)
 }
 
-func NewSender(client *stomp.Conn, destinationName string, subscriptionName string, contentType string) *Sender {
+func NewSender(client *stomp.Conn, destinationName string, subscriptionName string, contentType string, options...func(context.Context, []byte)([]byte, error)) *Sender {
 	des := destinationName + "::" + subscriptionName
 	if len(contentType) == 0 {
 		contentType = "text/plain"
 	}
-	return &Sender{Conn: client, Destination: des, ContentType: contentType}
+	var convert func(context.Context, []byte)([]byte, error)
+	if len(options) > 0 {
+		convert = options[0]
+	}
+	return &Sender{Conn: client, Destination: des, ContentType: contentType, Convert: convert}
 }
 
 func NewSenderByConfig(c Config, contentType string) (*Sender, error) {
@@ -30,7 +35,15 @@ func NewSenderByConfig(c Config, contentType string) (*Sender, error) {
 
 func (p *Sender) Send(ctx context.Context, data []byte, attributes map[string]string) (string, error) {
 	opts := MapToFrame(attributes)
-	err := p.Conn.Send(p.Destination, p.ContentType, data, opts...)
+	var binary = data
+	var err error
+	if p.Convert != nil {
+		binary, err = p.Convert(ctx, data)
+		if err != nil {
+			return "", err
+		}
+	}
+	err = p.Conn.Send(p.Destination, p.ContentType, binary, opts...)
 	return "", err
 }
 

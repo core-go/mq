@@ -9,37 +9,50 @@ import (
 type Publisher struct {
 	Conn    *nats.Conn
 	Subject string
+	Convert func(context.Context, []byte)([]byte, error)
 }
 
-func NewPublisher(conn *nats.Conn, subject string) *Publisher {
-	return &Publisher{conn, subject}
+func NewPublisher(conn *nats.Conn, subject string, options...func(context.Context, []byte)([]byte, error)) *Publisher {
+	var convert func(context.Context, []byte)([]byte, error)
+	if len(options) > 0 {
+		convert = options[0]
+	}
+	return &Publisher{conn, subject, convert}
 }
-func NewPublisherByConfig(p PublisherConfig) (*Publisher, error) {
+func NewPublisherByConfig(p PublisherConfig, options...func(context.Context, []byte)([]byte, error)) (*Publisher, error) {
 	if p.Connection.Retry.Retry1 <= 0 {
 		conn, err := nats.Connect(p.Connection.Url, p.Connection.Options)
 		if err != nil {
 			return nil, err
 		}
-		return NewPublisher(conn, p.Subject), nil
+		return NewPublisher(conn, p.Subject, options...), nil
 	} else {
 		durations := DurationsFromValue(p.Connection.Retry, "Retry", 9)
 		conn, err := NewConn(durations, p.Connection.Url, p.Connection.Options)
 		if err != nil {
 			return nil, err
 		}
-		return NewPublisher(conn, p.Subject), nil
+		return NewPublisher(conn, p.Subject, options...), nil
 	}
 }
 func (p *Publisher) Publish(ctx context.Context, data []byte, attributes map[string]string) (string, error) {
 	defer p.Conn.Flush()
+	var binary = data
+	var err error
+	if p.Convert != nil {
+		binary, err = p.Convert(ctx, data)
+		if err != nil {
+			return "", err
+		}
+	}
 	if attributes == nil {
-		err := p.Conn.Publish(p.Subject, data)
+		err := p.Conn.Publish(p.Subject, binary)
 		return "", err
 	} else {
 		header := MapToHeader(attributes)
 		var msg = &nats.Msg{
 			Subject: p.Subject,
-			Data:    data,
+			Data:    binary,
 			Reply:   "",
 			Header: nats.Header(*header),
 		}

@@ -11,26 +11,31 @@ type SimpleSubscriber struct {
 	Conn    *nats.Conn
 	Subject string
 	Header  bool
+	Convert func(context.Context, []byte) ([]byte, error)
 }
 
-func NewSimpleSubscriber(conn *nats.Conn, subject string, header bool) *SimpleSubscriber {
-	return &SimpleSubscriber{conn, subject, header}
+func NewSimpleSubscriber(conn *nats.Conn, subject string, header bool, options...func(context.Context, []byte)([]byte, error)) *SimpleSubscriber {
+	var convert func(context.Context, []byte)([]byte, error)
+	if len(options) > 0 {
+		convert = options[0]
+	}
+	return &SimpleSubscriber{conn, subject, header, convert}
 }
 
-func NewSimpleSubscriberByConfig(c SubscriberConfig) (*SimpleSubscriber, error) {
+func NewSimpleSubscriberByConfig(c SubscriberConfig, options...func(context.Context, []byte)([]byte, error)) (*SimpleSubscriber, error) {
 	if c.Connection.Retry.Retry1 <= 0 {
 		conn, err := nats.Connect(c.Connection.Url, c.Connection.Options)
 		if err != nil {
 			return nil, err
 		}
-		return NewSimpleSubscriber(conn, c.Subject, c.Header), nil
+		return NewSimpleSubscriber(conn, c.Subject, c.Header, options...), nil
 	} else {
 		durations := DurationsFromValue(c.Connection.Retry, "Retry", 9)
 		conn, err := NewConn(durations, c.Connection.Url, c.Connection.Options)
 		if err != nil {
 			return nil, err
 		}
-		return NewSimpleSubscriber(conn, c.Subject, c.Header), nil
+		return NewSimpleSubscriber(conn, c.Subject, c.Header, options...), nil
 	}
 }
 
@@ -38,13 +43,23 @@ func (c *SimpleSubscriber) Subscribe(ctx context.Context, handle func(context.Co
 	if c.Header {
 		c.Conn.Subscribe(c.Subject, func(msg *nats.Msg) {
 			attrs := HeaderToMap(http.Header(msg.Header))
-			handle(ctx, msg.Data, attrs, nil)
+			if c.Convert == nil {
+				handle(ctx, msg.Data, attrs, nil)
+			} else {
+				data, err := c.Convert(ctx, msg.Data)
+				handle(ctx, data, attrs, err)
+			}
 		})
 		c.Conn.Flush()
 		runtime.Goexit()
 	} else {
 		c.Conn.Subscribe(c.Subject, func(msg *nats.Msg) {
-			handle(ctx, msg.Data, nil, nil)
+			if c.Convert == nil {
+				handle(ctx, msg.Data, nil, nil)
+			} else {
+				data, err := c.Convert(ctx, msg.Data)
+				handle(ctx, data, nil, err)
+			}
 		})
 		c.Conn.Flush()
 		runtime.Goexit()

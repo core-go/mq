@@ -13,13 +13,18 @@ type SimpleReader struct {
 	ConsumerGroup sarama.ConsumerGroup
 	Topic         []string
 	AckOnConsume  bool
+	Convert       func(context.Context, []byte) ([]byte, error)
 }
 
-func NewSimpleReader(consumerGroup sarama.ConsumerGroup, topic []string, ackOnConsume bool) (*SimpleReader, error) {
-	return &SimpleReader{ConsumerGroup: consumerGroup, Topic: topic, AckOnConsume: ackOnConsume}, nil
+func NewSimpleReader(consumerGroup sarama.ConsumerGroup, topic []string, ackOnConsume bool, options...func(context.Context, []byte)([]byte, error)) (*SimpleReader, error) {
+	var convert func(context.Context, []byte)([]byte, error)
+	if len(options) > 0 {
+		convert = options[0]
+	}
+	return &SimpleReader{ConsumerGroup: consumerGroup, Topic: topic, AckOnConsume: ackOnConsume, Convert: convert}, nil
 }
 
-func NewSimpleReaderByConfig(c ReaderConfig, ackOnConsume bool) (*SimpleReader, error) {
+func NewSimpleReaderByConfig(c ReaderConfig, ackOnConsume bool, options...func(context.Context, []byte)([]byte, error)) (*SimpleReader, error) {
 	algorithm := sarama.SASLTypeSCRAMSHA256
 	if c.Client.Algorithm != "" {
 		algorithm = c.Client.Algorithm
@@ -40,13 +45,13 @@ func NewSimpleReaderByConfig(c ReaderConfig, ackOnConsume bool) (*SimpleReader, 
 		if er2 != nil {
 			return nil, er2
 		}
-		return NewSimpleReader(*reader, []string{c.Topic}, ackOnConsume)
+		return NewSimpleReader(*reader, []string{c.Topic}, ackOnConsume, options...)
 	} else {
 		reader, er2 := sarama.NewConsumerGroup(c.Brokers, c.GroupID, config)
 		if er2 != nil {
 			return nil, er2
 		}
-		return NewSimpleReader(reader, []string{c.Topic}, ackOnConsume)
+		return NewSimpleReader(reader, []string{c.Topic}, ackOnConsume, options...)
 	}
 }
 func NewReaderGroup(addrs []string, groupID string, config *sarama.Config, retries ...time.Duration) (*sarama.ConsumerGroup, error) {
@@ -81,7 +86,7 @@ func NewReaderGroupWithRetryArray(addrs []string, groupID string, config *sarama
 	return &r, err
 }
 func (c *SimpleReader) Read(ctx context.Context, handle func(context.Context, []byte, map[string]string, error) error) {
-	readerHandler := &SimpleReaderHandler{Topic: c.Topic, AckOnConsume: c.AckOnConsume, Handle: handle}
+	readerHandler := &SimpleReaderHandler{Topic: c.Topic, AckOnConsume: c.AckOnConsume, Handle: handle, Convert: c.Convert}
 	wg := &sync.WaitGroup{}
 	wg.Add(1)
 	go func() {

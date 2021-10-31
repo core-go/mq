@@ -12,12 +12,17 @@ type Consumer struct {
 	QueueName    string
 	AutoAck      bool
 	AckOnConsume bool
+	Convert      func(context.Context, []byte) ([]byte, error)
 }
 
-func NewConsumer(channel *amqp.Channel, exchangeName string, queueName string, autoAck, ackOnConsume bool) (*Consumer, error) {
-	return &Consumer{Channel: channel, ExchangeName: exchangeName, QueueName: queueName, AutoAck: autoAck, AckOnConsume: ackOnConsume}, nil
+func NewConsumer(channel *amqp.Channel, exchangeName string, queueName string, autoAck, ackOnConsume bool, options...func(context.Context, []byte)([]byte, error)) (*Consumer, error) {
+	var convert func(context.Context, []byte)([]byte, error)
+	if len(options) > 0 {
+		convert = options[0]
+	}
+	return &Consumer{Channel: channel, ExchangeName: exchangeName, QueueName: queueName, AutoAck: autoAck, AckOnConsume: ackOnConsume, Convert: convert}, nil
 }
-func NewConsumerByConfig(config ConsumerConfig, autoAck, ackOnConsume bool) (*Consumer, error) {
+func NewConsumerByConfig(config ConsumerConfig, autoAck, ackOnConsume bool, options...func(context.Context, []byte)([]byte, error)) (*Consumer, error) {
 	channel, er1 := NewChannel(config.Url)
 	if er1 != nil {
 		return nil, er1
@@ -30,7 +35,7 @@ func NewConsumerByConfig(config ConsumerConfig, autoAck, ackOnConsume bool) (*Co
 	if err != nil {
 		return nil, err
 	}
-	return NewConsumer(channel, config.ExchangeName, queue.Name, autoAck, ackOnConsume)
+	return NewConsumer(channel, config.ExchangeName, queue.Name, autoAck, ackOnConsume, options...)
 }
 
 func (c *Consumer) Consume(ctx context.Context, handle func(context.Context, *mq.Message, error) error) {
@@ -51,7 +56,15 @@ func (c *Consumer) Consume(ctx context.Context, handle func(context.Context, *mq
 			if c.AckOnConsume && !c.AutoAck {
 				msg.Ack(false)
 			}
-			handle(ctx, &message, nil)
+			if c.Convert == nil {
+				handle(ctx, &message, nil)
+			} else {
+				data, err := c.Convert(ctx, msg.Body)
+				if err == nil {
+					message.Data = data
+				}
+				handle(ctx, &message, err)
+			}
 		}
 	}
 }

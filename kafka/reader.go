@@ -12,20 +12,25 @@ import (
 type Reader struct {
 	Reader       *kafka.Reader
 	AckOnConsume bool
+	Convert      func(context.Context, []byte) ([]byte, error)
 }
 
-func NewReader(reader *kafka.Reader, ackOnConsume bool) (*Reader, error) {
-	return &Reader{Reader: reader, AckOnConsume: ackOnConsume}, nil
+func NewReader(reader *kafka.Reader, ackOnConsume bool, options...func(context.Context, []byte)([]byte, error)) (*Reader, error) {
+	var convert func(context.Context, []byte)([]byte, error)
+	if len(options) > 0 {
+		convert = options[0]
+	}
+	return &Reader{Reader: reader, AckOnConsume: ackOnConsume, Convert: convert}, nil
 }
 
-func NewReaderByConfig(c ReaderConfig, ackOnConsume bool) (*Reader, error) {
+func NewReaderByConfig(c ReaderConfig, ackOnConsume bool, options...func(context.Context, []byte)([]byte, error)) (*Reader, error) {
 	dialer := GetDialer(c.Client.Username, c.Client.Password, scram.SHA512, &kafka.Dialer{
 		Timeout:   30 * time.Second,
 		DualStack: true,
 		TLS:       &tls.Config{},
 	})
 	reader := NewKafkaReader(c, dialer)
-	return NewReader(reader, ackOnConsume)
+	return NewReader(reader, ackOnConsume, options...)
 }
 
 func (c *Reader) Read(ctx context.Context, handle func(context.Context, *mq.Message, error) error) {
@@ -45,7 +50,16 @@ func (c *Reader) Read(ctx context.Context, handle func(context.Context, *mq.Mess
 			if c.AckOnConsume {
 				c.Reader.CommitMessages(ctx, msg)
 			}
-			handle(ctx, &message, nil)
+			if c.Convert == nil {
+				handle(ctx, &message, nil)
+			} else {
+				data, err := c.Convert(ctx, msg.Value)
+				if err == nil {
+					message.Data = data
+				}
+				handle(ctx, &message, err)
+			}
+
 		}
 	}
 }

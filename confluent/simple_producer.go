@@ -10,22 +10,31 @@ import (
 type (
 	SimpleProducer struct {
 		Producer *kafka.Producer
+		Convert func(context.Context, []byte)([]byte, error)
 	}
 )
 
-func NewSimpleProducerByConfig(c ProducerConfig) (*SimpleProducer, error) {
+func NewSimpleProducerByConfig(c ProducerConfig, options...func(context.Context, []byte)([]byte, error)) (*SimpleProducer, error) {
 	p, err := NewKafkaProducerByConfig(c)
 	if err != nil {
 		fmt.Printf("Failed to create Producer: %s\n", err)
 		return nil, err
 	}
-
+	var convert func(context.Context, []byte)([]byte, error)
+	if len(options) > 0 {
+		convert = options[0]
+	}
 	return &SimpleProducer{
 		Producer: p,
+		Convert: convert,
 	}, nil
 }
-func NewSimpleProducer(producer *kafka.Producer) *SimpleProducer {
-	return &SimpleProducer{Producer: producer}
+func NewSimpleProducer(producer *kafka.Producer, options...func(context.Context, []byte)([]byte, error)) *SimpleProducer {
+	var convert func(context.Context, []byte)([]byte, error)
+	if len(options) > 0 {
+		convert = options[0]
+	}
+	return &SimpleProducer{Producer: producer, Convert: convert}
 }
 func NewKafkaProducerByConfig(c ProducerConfig) (*kafka.Producer, error) {
 	conf := kafka.ConfigMap{
@@ -61,9 +70,17 @@ func NewKafkaProducerByConfig(c ProducerConfig) (*kafka.Producer, error) {
 }
 
 func (p *SimpleProducer) Produce(ctx context.Context, topic string, data []byte, messageAttributes map[string]string) (string, error) {
+	var binary = data
+	var err error
+	if p.Convert != nil {
+		binary, err = p.Convert(ctx, data)
+		if err != nil {
+			return "", err
+		}
+	}
 	msg := kafka.Message{
 		TopicPartition: kafka.TopicPartition{Topic: &topic, Partition: kafka.PartitionAny},
-		Value:          data}
+		Value:          binary}
 	if messageAttributes != nil {
 		msg.Headers = MapToHeader(messageAttributes)
 	}

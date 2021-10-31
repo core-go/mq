@@ -12,9 +12,10 @@ type Subscriber struct {
 	Subscription *stomp.Subscription
 	AckMode      stomp.AckMode
 	AckOnConsume bool
+	Convert      func(context.Context, []byte) ([]byte, error)
 }
 
-func NewSubscriber(client *stomp.Conn, destinationName string, subscriptionName string, ackMode stomp.AckMode, ackOnConsume bool) (*Subscriber, error) {
+func NewSubscriber(client *stomp.Conn, destinationName string, subscriptionName string, ackMode stomp.AckMode, ackOnConsume bool, options...func(context.Context, []byte)([]byte, error)) (*Subscriber, error) {
 	des := destinationName + "::" + subscriptionName
 	subscription, err := client.Subscribe(des, ackMode,
 		stomp.SubscribeOpt.Header("subscription-type", "ANYCAST"),
@@ -22,15 +23,19 @@ func NewSubscriber(client *stomp.Conn, destinationName string, subscriptionName 
 	if err != nil {
 		return nil, err
 	}
-	return &Subscriber{Conn: client, Subscription: subscription, AckMode: ackMode, AckOnConsume: ackOnConsume}, nil
+	var convert func(context.Context, []byte)([]byte, error)
+	if len(options) > 0 {
+		convert = options[0]
+	}
+	return &Subscriber{Conn: client, Subscription: subscription, AckMode: ackMode, AckOnConsume: ackOnConsume, Convert: convert}, nil
 }
 
-func NewSubscriberByConfig(c Config, ackMode stomp.AckMode, ackOnConsume bool) (*Subscriber, error) {
+func NewSubscriberByConfig(c Config, ackMode stomp.AckMode, ackOnConsume bool, options...func(context.Context, []byte)([]byte, error)) (*Subscriber, error) {
 	client, err := NewConnWithHeartBeat(c.UserName, c.Password, c.Addr, 5*time.Second, -1)
 	if err != nil {
 		return nil, err
 	}
-	return NewSubscriber(client, c.DestinationName, c.SubscriptionName, ackMode, ackOnConsume)
+	return NewSubscriber(client, c.DestinationName, c.SubscriptionName, ackMode, ackOnConsume, options...)
 }
 
 func (c *Subscriber) Subscribe(ctx context.Context, handle func(context.Context, *mq.Message, error) error) {
@@ -44,6 +49,14 @@ func (c *Subscriber) Subscribe(ctx context.Context, handle func(context.Context,
 		if c.AckOnConsume && c.AckMode != stomp.AckAuto {
 			c.Conn.Ack(msg)
 		}
-		handle(ctx, &message, nil)
+		if c.Convert == nil {
+			handle(ctx, &message, nil)
+		} else {
+			data, err := c.Convert(ctx, msg.Body)
+			if err == nil {
+				message.Data = data
+			}
+			handle(ctx, &message, nil)
+		}
 	}
 }

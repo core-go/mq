@@ -9,18 +9,16 @@ import (
 type SimpleSender struct {
 	Client       *sqs.SQS
 	DelaySeconds *int64 //could be 10
+	Convert      func(context.Context, []byte) ([]byte, error)
 }
 
-func NewSimpleSender(client *sqs.SQS, options... int64) *SimpleSender {
-	var delaySeconds int64
-	if len(options) > 0 && options[0] >= 0 {
-		delaySeconds = options[0]
-	} else {
-		delaySeconds = 10
+func NewSimpleSender(client *sqs.SQS, delaySeconds int64, options ...func(context.Context, []byte) ([]byte, error)) *SimpleSender {
+	var convert func(context.Context, []byte) ([]byte, error)
+	if len(options) > 0 {
+		convert = options[0]
 	}
-	return &SimpleSender{Client: client, DelaySeconds: &delaySeconds}
+	return &SimpleSender{Client: client, DelaySeconds: &delaySeconds, Convert: convert}
 }
-
 
 func (p *SimpleSender) Send(ctx context.Context, queueName string, data []byte, attributes map[string]string) (string, error) {
 	queueUrl, err := GetQueueUrl(p.Client, queueName)
@@ -28,7 +26,14 @@ func (p *SimpleSender) Send(ctx context.Context, queueName string, data []byte, 
 		return "", err
 	}
 	attrs := MapToAttributes(attributes)
-	s := string(data)
+	var binary = data
+	if p.Convert != nil {
+		binary, err = p.Convert(ctx, data)
+		if err != nil {
+			return "", err
+		}
+	}
+	s := string(binary)
 	result, err := p.Client.SendMessage(&sqs.SendMessageInput{
 		DelaySeconds:      p.DelaySeconds,
 		MessageAttributes: attrs,

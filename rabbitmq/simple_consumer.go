@@ -11,12 +11,17 @@ type SimpleConsumer struct {
 	QueueName    string
 	AutoAck      bool
 	AckOnConsume bool
+	Convert      func(context.Context, []byte) ([]byte, error)
 }
 
-func NewSimpleConsumer(channel *amqp.Channel, exchangeName string, queueName string, autoAck, ackOnConsume bool) (*SimpleConsumer, error) {
-	return &SimpleConsumer{Channel: channel, ExchangeName: exchangeName, QueueName: queueName, AutoAck: autoAck, AckOnConsume: ackOnConsume}, nil
+func NewSimpleConsumer(channel *amqp.Channel, exchangeName string, queueName string, autoAck, ackOnConsume bool, options...func(context.Context, []byte)([]byte, error)) (*SimpleConsumer, error) {
+	var convert func(context.Context, []byte)([]byte, error)
+	if len(options) > 0 {
+		convert = options[0]
+	}
+	return &SimpleConsumer{Channel: channel, ExchangeName: exchangeName, QueueName: queueName, AutoAck: autoAck, AckOnConsume: ackOnConsume, Convert: convert}, nil
 }
-func NewSimpleConsumerByConfig(config ConsumerConfig, autoAck, ackOnConsume bool) (*SimpleConsumer, error) {
+func NewSimpleConsumerByConfig(config ConsumerConfig, autoAck, ackOnConsume bool, options...func(context.Context, []byte)([]byte, error)) (*SimpleConsumer, error) {
 	channel, er1 := NewChannel(config.Url)
 	if er1 != nil {
 		return nil, er1
@@ -29,7 +34,7 @@ func NewSimpleConsumerByConfig(config ConsumerConfig, autoAck, ackOnConsume bool
 	if err != nil {
 		return nil, err
 	}
-	return NewSimpleConsumer(channel, config.ExchangeName, queue.Name, autoAck, ackOnConsume)
+	return NewSimpleConsumer(channel, config.ExchangeName, queue.Name, autoAck, ackOnConsume, options...)
 }
 
 func (c *SimpleConsumer) Consume(ctx context.Context, handle func(context.Context, []byte, map[string]string, error) error) {
@@ -42,7 +47,12 @@ func (c *SimpleConsumer) Consume(ctx context.Context, handle func(context.Contex
 			if c.AckOnConsume && !c.AutoAck {
 				msg.Ack(false)
 			}
-			handle(ctx, msg.Body, attributes, nil)
+			if c.Convert == nil {
+				handle(ctx, msg.Body, attributes, nil)
+			} else {
+				data, err := c.Convert(ctx, msg.Body)
+				handle(ctx, data, attributes, err)
+			}
 		}
 	}
 }

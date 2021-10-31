@@ -12,18 +12,23 @@ type SimpleReceiver struct {
 	AckOnConsume      bool
 	VisibilityTimeout int64 // should be 20 (seconds)
 	WaitTimeSeconds   int64 // should be 0
+	Convert           func(context.Context, []byte) ([]byte, error)
 }
 
-func NewSimpleReceiverByQueueName(client *sqs.SQS, queueName string, ackOnConsume bool, visibilityTimeout int64, waitTimeSeconds int64) (*SimpleReceiver, error) {
+func NewSimpleReceiverByQueueName(client *sqs.SQS, queueName string, ackOnConsume bool, visibilityTimeout int64, waitTimeSeconds int64, options...func(context.Context, []byte)([]byte, error)) (*SimpleReceiver, error) {
 	queueUrl, err := GetQueueUrl(client, queueName)
 	if err != nil {
 		return nil, err
 	}
-	return NewSimpleReceiver(client, queueUrl, ackOnConsume, visibilityTimeout, waitTimeSeconds), nil
+	return NewSimpleReceiver(client, queueUrl, ackOnConsume, visibilityTimeout, waitTimeSeconds, options...), nil
 }
 
-func NewSimpleReceiver(client *sqs.SQS, queueURL string, ackOnConsume bool, visibilityTimeout int64, waitTimeSeconds int64) *SimpleReceiver {
-	return &SimpleReceiver{Client: client, QueueURL: &queueURL, AckOnConsume: ackOnConsume, VisibilityTimeout: visibilityTimeout, WaitTimeSeconds: waitTimeSeconds}
+func NewSimpleReceiver(client *sqs.SQS, queueURL string, ackOnConsume bool, visibilityTimeout int64, waitTimeSeconds int64, options...func(context.Context, []byte)([]byte, error)) *SimpleReceiver {
+	var convert func(context.Context, []byte)([]byte, error)
+	if len(options) > 0 {
+		convert = options[0]
+	}
+	return &SimpleReceiver{Client: client, QueueURL: &queueURL, AckOnConsume: ackOnConsume, VisibilityTimeout: visibilityTimeout, WaitTimeSeconds: waitTimeSeconds, Convert: convert}
 }
 
 func (c *SimpleReceiver) Receive(ctx context.Context, handle func(context.Context, []byte, map[string]string, error) error) {
@@ -57,10 +62,20 @@ loop:
 				if er2 != nil {
 					handle(ctx, data, attributes, er2)
 				} else {
-					handle(ctx, data, attributes, nil)
+					if c.Convert == nil {
+						handle(ctx, data, attributes, nil)
+					} else {
+						data0, err := c.Convert(ctx, data)
+						handle(ctx, data0, attributes, err)
+					}
 				}
 			} else {
-				handle(ctx, data, attributes, nil)
+				if c.Convert == nil {
+					handle(ctx, data, attributes, nil)
+				} else {
+					data0, err := c.Convert(ctx, data)
+					handle(ctx, data0, attributes, err)
+				}
 			}
 		}
 	}

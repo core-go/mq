@@ -8,20 +8,30 @@ import (
 type Publisher struct {
 	QueueManager *ibmmq.MQQueueManager
 	QueueName    string
+	Convert      func(context.Context, []byte) ([]byte, error)
 }
 
-func NewPublisher(manager *ibmmq.MQQueueManager, queueName string) *Publisher {
-	return &Publisher{manager, queueName}
+func NewPublisher(manager *ibmmq.MQQueueManager, queueName string, options ...func(context.Context, []byte) ([]byte, error)) *Publisher {
+	var convert func(context.Context, []byte) ([]byte, error)
+	if len(options) > 0 {
+		convert = options[0]
+	}
+	return &Publisher{manager, queueName, convert}
 }
 
-func NewPublisherByConfig(c QueueConfig, auth MQAuth) (*Publisher, error) {
+func NewPublisherByConfig(c QueueConfig, auth MQAuth, options ...func(context.Context, []byte) ([]byte, error)) (*Publisher, error) {
 	mgr, err := NewQueueManagerByConfig(c, auth)
 	if err != nil {
 		return nil, err
 	}
+	var convert func(context.Context, []byte) ([]byte, error)
+	if len(options) > 0 {
+		convert = options[0]
+	}
 	return &Publisher{
 		QueueManager: mgr,
 		QueueName:    c.QueueName,
+		Convert:      convert,
 	}, nil
 }
 
@@ -46,7 +56,15 @@ func (p *Publisher) Publish(ctx context.Context, data []byte, attributes map[str
 	// Tell MQ what the message body format is. In this case, a text string
 	md.Format = ibmmq.MQFMT_STRING
 
+	var binary = data
+	var err error
+	if p.Convert != nil {
+		binary, err = p.Convert(ctx, data)
+		if err != nil {
+			return "", err
+		}
+	}
 	// Now put the message to the queue
-	er2 := topicObject.Put(md, pmo, data)
+	er2 := topicObject.Put(md, pmo, binary)
 	return "", er2
 }

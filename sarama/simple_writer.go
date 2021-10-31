@@ -8,25 +8,34 @@ import (
 
 type SimpleWriter struct {
 	SyncProducer sarama.SyncProducer
+	Convert      func(context.Context, []byte) ([]byte, error)
 	Generate     func() string
 }
 
-func NewSimpleWriter(writer sarama.SyncProducer, options ...func() string) (*SimpleWriter, error) {
-	var generate func()string
+func NewSimpleWriter(writer sarama.SyncProducer, convert func(context.Context, []byte)([]byte, error), options ...func() string) (*SimpleWriter, error) {
+	var generate func() string
 	if len(options) > 0 {
 		generate = options[0]
 	}
-	return &SimpleWriter{SyncProducer: writer, Generate: generate}, nil
+	return &SimpleWriter{SyncProducer: writer, Convert: convert, Generate: generate}, nil
 }
-func NewSimpleWriterByConfig(c WriterConfig, options ...func() string) (*SimpleWriter, error) {
+func NewSimpleWriterByConfig(c WriterConfig, convert func(context.Context, []byte)([]byte, error), options ...func() string) (*SimpleWriter, error) {
 	writer, err := newSyncProducer(c)
 	if err != nil {
 		return nil, err
 	}
-	return NewSimpleWriter(*writer, options...)
+	return NewSimpleWriter(*writer, convert, options...)
 }
 func (p *SimpleWriter) Write(ctx context.Context, topic string, data []byte, messageAttributes map[string]string) (string, error) {
-	msg := sarama.ProducerMessage{Value: sarama.ByteEncoder(data), Topic: topic}
+	var binary = data
+	var err error
+	if p.Convert != nil {
+		binary, err = p.Convert(ctx, data)
+		if err != nil {
+			return "", err
+		}
+	}
+	msg := sarama.ProducerMessage{Value: sarama.ByteEncoder(binary), Topic: topic}
 	if messageAttributes != nil {
 		msg.Headers = MapToHeader(messageAttributes)
 	}
