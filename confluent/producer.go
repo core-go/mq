@@ -15,6 +15,7 @@ type (
 		Timeout  int
 		Convert  func(context.Context, []byte) ([]byte, error)
 		Generate func() string
+		Error    func(*kafka.Message, error) error
 	}
 )
 func NewProducerByConfigMap(c kafka.ConfigMap, topic string, timeout int, convert func(context.Context, []byte) ([]byte, error), options ...func() string) (*Producer, error) {
@@ -131,6 +132,12 @@ func (p *Producer) Produce(ctx context.Context, data []byte, messageAttributes m
 	e := <-deliveryChan
 	switch m := e.(type) {
 	case *kafka.Message:
+		if m.TopicPartition.Error != nil {
+			if p.Error != nil {
+				err = p.Error(m, err)
+			}
+			return msg.String(), err
+		}
 		return msg.String(), m.TopicPartition.Error
 	case kafka.Error:
 		return "", m
@@ -165,6 +172,12 @@ func (p *Producer) ProduceWithKey(ctx context.Context, data []byte, key []byte, 
 	e := <-deliveryChan
 	switch m := e.(type) {
 	case *kafka.Message:
+		if m.TopicPartition.Error != nil {
+			if p.Error != nil {
+				err = p.Error(m, err)
+			}
+			return msg.String(), err
+		}
 		return msg.String(), m.TopicPartition.Error
 	case kafka.Error:
 		return "", m
