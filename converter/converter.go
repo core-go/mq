@@ -50,13 +50,13 @@ func StringToAvroDate(date *string) (*int, error) {
 	if err != nil {
 		return nil, err
 	}
-	i := int(d.Unix() / int64(60*60*24))
+	i := int(d.Unix() / 86400)
 	return &i, nil
 }
 func ToAvroDate(date *time.Time) *int {
 	if date == nil {
 		return nil
 	}
-	i := int(date.Unix() / int64(60*60*24))
+	i := int(date.Unix() / 86400)
 	return &i
 }
