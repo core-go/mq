@@ -2,7 +2,8 @@ package kafka
 
 type ProducerConfig struct {
 	Brokers         []string       `mapstructure:"brokers" json:"brokers,omitempty" gorm:"column:brokers" bson:"brokers,omitempty" dynamodbav:"brokers,omitempty" firestore:"brokers,omitempty"`
-	Topic           string         `mapstructure:"Topic" json:"Topic,omitempty" gorm:"column:Topic" bson:"Topic,omitempty" dynamodbav:"Topic,omitempty" firestore:"Topic,omitempty"`
+	Topic           string         `mapstructure:"topic" json:"topic,omitempty" gorm:"column:topic" bson:"topic,omitempty" dynamodbav:"topic,omitempty" firestore:"topic,omitempty"`
+	Timeout         int            `mapstructure:"timeout" json:"timeout,omitempty" gorm:"column:timeout" bson:"timeout,omitempty" dynamodbav:"timeout,omitempty" firestore:"timeout,omitempty"`
 	Client          ClientConfig   `mapstructure:"client" json:"client,omitempty" gorm:"column:client" bson:"client,omitempty" dynamodbav:"client,omitempty" firestore:"client,omitempty"`
 	MaxOpenRequests *int           `mapstructure:"max_open_requests" json:"maxOpenRequests,omitempty" gorm:"column:maxopenrequests" bson:"maxOpenRequests,omitempty" dynamodbav:"maxOpenRequests,omitempty" firestore:"maxOpenRequests,omitempty"`
 	RequiredAcks    *int16         `mapstructure:"required_acks" json:"requiredAcks,omitempty" gorm:"column:requiredacks" bson:"requiredAcks,omitempty" dynamodbav:"requiredAcks,omitempty" firestore:"requiredAcks,omitempty"`

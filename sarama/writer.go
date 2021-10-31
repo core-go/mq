@@ -148,3 +148,27 @@ func (p *Writer) Write(ctx context.Context, data []byte, messageAttributes map[s
 		return string(b), err
 	}
 }
+func (p *Writer) WriteWithKey(ctx context.Context, data []byte, key string, messageAttributes map[string]string) (string, error) {
+	var binary = data
+	var err error
+	if p.Convert != nil {
+		binary, err = p.Convert(ctx, data)
+		if err != nil {
+			return "", err
+		}
+	}
+	msg := sarama.ProducerMessage{Value: sarama.ByteEncoder(binary), Topic: p.Topic}
+	if messageAttributes != nil {
+		msg.Headers = MapToHeader(messageAttributes)
+	}
+	m := make(map[string]interface{})
+	if len(key) > 0 {
+		msg.Key = sarama.StringEncoder(key)
+		m[Key] = key
+	}
+	pt, o, err := p.SyncProducer.SendMessage(&msg)
+	m[Partition] = pt
+	m[Offset] = o
+	b, _ := json.Marshal(m)
+	return string(b), err
+}

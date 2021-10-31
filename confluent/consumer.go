@@ -38,6 +38,22 @@ func NewConsumerByConfig(c ConsumerConfig, options ...func(context.Context, []by
 		}, nil
 	}
 }
+func NewConsumerByConfigMap(conf kafka.ConfigMap, topics []string, options ...func(context.Context, []byte) ([]byte, error)) (*Consumer, error) {
+	consumer, err := kafka.NewConsumer(&conf)
+	if err != nil {
+		fmt.Printf("Failed to create Consumer: %s\n", err)
+		return nil, err
+	}
+	var convert func(context.Context, []byte) ([]byte, error)
+	if len(options) > 0 {
+		convert = options[0]
+	}
+	return &Consumer{
+		Consumer: consumer,
+		Topics:   topics,
+		Convert:  convert,
+	}, nil
+}
 func NewConsumer(consumer *kafka.Consumer, topics []string, options ...func(context.Context, []byte) ([]byte, error)) *Consumer {
 	var convert func(context.Context, []byte) ([]byte, error)
 	if len(options) > 0 {

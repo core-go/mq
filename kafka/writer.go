@@ -56,3 +56,22 @@ func (p *Writer) Write(ctx context.Context, data []byte, attributes map[string]s
 		return "", err
 	}
 }
+func (p *Writer) WriteWithKey(ctx context.Context, data []byte, key []byte, attributes map[string]string) (string, error) {
+	var binary = data
+	var err error
+	if p.Convert != nil {
+		binary, err = p.Convert(ctx, data)
+		if err != nil {
+			return "", err
+		}
+	}
+	msg := kafka.Message{Value: binary}
+	if attributes != nil {
+		msg.Headers = MapToHeader(attributes)
+	}
+	if key != nil {
+		msg.Key = key
+	}
+	err = p.Writer.WriteMessages(ctx, msg)
+	return "", err
+}

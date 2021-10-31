@@ -5,7 +5,7 @@
 Support these message queues:
 - Amazon Simple Queue Service (SQS) at [sqs](https://github.com/core-go/mq/tree/main/sqs)
 - Google Cloud Pub/Sub at [pubsub](https://github.com/core-go/mq/tree/main/pubsub)
-- Kafka: at [segmentio/kafka-go](https://github.com/core-go/mq/tree/main/kafka) and [Shopify/sarama](https://github.com/core-go/mq/tree/main/sarama)
+- Kafka: at [segmentio/kafka-go](https://github.com/core-go/mq/tree/main/kafka), [Shopify/sarama](https://github.com/core-go/mq/tree/main/sarama) and [confluent](https://github.com/core-go/mq/tree/main/confluent)
 - NATS at [nats](https://github.com/core-go/mq/tree/main/nats)
 - Active MQ at [amq](https://github.com/core-go/mq/tree/main/amq)
 - RabbitMQ at [rabbitmq](https://github.com/core-go/mq/tree/main/rabbitmq)
@@ -23,4 +23,9 @@ go get -u github.com/core-go/mq
 Import:
 ```go
 import "github.com/core-go/mq"
+```
+
+Build for confluent:
+```go
+go build -buildmode=exe main.go
 ```

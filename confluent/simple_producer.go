@@ -10,31 +10,62 @@ import (
 type (
 	SimpleProducer struct {
 		Producer *kafka.Producer
-		Convert func(context.Context, []byte)([]byte, error)
+		Timeout  int
+		Convert  func(context.Context, []byte) ([]byte, error)
+		Generate func() string
 	}
 )
-
-func NewSimpleProducerByConfig(c ProducerConfig, options...func(context.Context, []byte)([]byte, error)) (*SimpleProducer, error) {
+func NewSimpleProducerByConfigMap(c kafka.ConfigMap, timeout int, convert func(context.Context, []byte) ([]byte, error), options ...func() string) (*SimpleProducer, error) {
+	p, err := kafka.NewProducer(&c)
+	if err != nil {
+		fmt.Printf("Failed to create Producer: %s\n", err)
+		return nil, err
+	}
+	var generate func() string
+	if len(options) > 0 {
+		generate = options[0]
+	}
+	if timeout <= 0 {
+		timeout = 100
+	}
+	pd := &SimpleProducer{
+		Producer: p,
+		Timeout:  timeout,
+		Convert:  convert,
+		Generate: generate,
+	}
+	return pd, nil
+}
+func NewSimpleProducerByConfig(c ProducerConfig, timeout int, convert func(context.Context, []byte) ([]byte, error), options ...func() string) (*SimpleProducer, error) {
 	p, err := NewKafkaProducerByConfig(c)
 	if err != nil {
 		fmt.Printf("Failed to create Producer: %s\n", err)
 		return nil, err
 	}
-	var convert func(context.Context, []byte)([]byte, error)
+	var generate func() string
 	if len(options) > 0 {
-		convert = options[0]
+		generate = options[0]
 	}
-	return &SimpleProducer{
+	if timeout <= 0 {
+		timeout = 100
+	}
+	pd := &SimpleProducer{
 		Producer: p,
-		Convert: convert,
-	}, nil
-}
-func NewSimpleProducer(producer *kafka.Producer, options...func(context.Context, []byte)([]byte, error)) *SimpleProducer {
-	var convert func(context.Context, []byte)([]byte, error)
-	if len(options) > 0 {
-		convert = options[0]
+		Timeout:  timeout,
+		Convert:  convert,
+		Generate: generate,
 	}
-	return &SimpleProducer{Producer: producer, Convert: convert}
+	return pd, nil
+}
+func NewSimpleProducer(producer *kafka.Producer, timeout int, convert func(context.Context, []byte) ([]byte, error), options ...func() string) *SimpleProducer {
+	var generate func() string
+	if len(options) > 0 {
+		generate = options[0]
+	}
+	if timeout <= 0 {
+		timeout = 100
+	}
+	return &SimpleProducer{Producer: producer, Timeout: timeout, Convert: convert, Generate: generate}
 }
 func NewKafkaProducerByConfig(c ProducerConfig) (*kafka.Producer, error) {
 	conf := kafka.ConfigMap{
@@ -84,33 +115,60 @@ func (p *SimpleProducer) Produce(ctx context.Context, topic string, data []byte,
 	if messageAttributes != nil {
 		msg.Headers = MapToHeader(messageAttributes)
 	}
-	return Produce(p.Producer, &msg)
-}
-
-func Produce(producer *kafka.Producer, msg *kafka.Message) (string, error) {
-	deliveryChan := make(chan kafka.Event, 10000)
-	err := producer.Produce(msg, deliveryChan)
-	if err != nil {
-		fmt.Printf("Failed to produce msg: %s\n", err)
-		return "", err
+	if p.Generate != nil {
+		id := p.Generate()
+		msg.Key = []byte(id)
 	}
-	go func() {
-		for e := range producer.Events() {
-			switch ev := e.(type) {
-			case *kafka.Message:
-				if ev.TopicPartition.Error != nil {
-					fmt.Printf("Failed to deliver message: %v\n", ev.TopicPartition)
-				} else {
-					fmt.Printf("Successfully produced record to Topic %s partition [%d] @ offset %v\n",
-						*ev.TopicPartition.Topic, ev.TopicPartition.Partition, ev.TopicPartition.Offset)
-				}
-			}
-		}
-	}()
-
+	deliveryChan := make(chan kafka.Event)
+	defer close(deliveryChan)
+	err = p.Producer.Produce(&msg, deliveryChan)
+	if err != nil {
+		return msg.String(), err
+	}
+	p.Producer.Flush(p.Timeout)
+	e := <-deliveryChan
+	switch m := e.(type) {
+	case *kafka.Message:
+		return msg.String(), m.TopicPartition.Error
+	case kafka.Error:
+		return "", m
+	}
 	return msg.String(), nil
 }
-
+func (p *SimpleProducer) ProduceWithKey(ctx context.Context, topic string, data []byte, key []byte, messageAttributes map[string]string) (string, error) {
+	var binary = data
+	var err error
+	if p.Convert != nil {
+		binary, err = p.Convert(ctx, data)
+		if err != nil {
+			return "", err
+		}
+	}
+	msg := kafka.Message{
+		TopicPartition: kafka.TopicPartition{Topic: &topic, Partition: kafka.PartitionAny},
+		Value:          binary}
+	if messageAttributes != nil {
+		msg.Headers = MapToHeader(messageAttributes)
+	}
+	if key != nil {
+		msg.Key = key
+	}
+	deliveryChan := make(chan kafka.Event)
+	defer close(deliveryChan)
+	err = p.Producer.Produce(&msg, deliveryChan)
+	if err != nil {
+		return msg.String(), err
+	}
+	p.Producer.Flush(p.Timeout)
+	e := <-deliveryChan
+	switch m := e.(type) {
+	case *kafka.Message:
+		return msg.String(), m.TopicPartition.Error
+	case kafka.Error:
+		return "", m
+	}
+	return msg.String(), nil
+}
 func MapToHeader(messageAttributes map[string]string) []kafka.Header {
 	headers := make([]kafka.Header, 0)
 	for k, v := range messageAttributes {
