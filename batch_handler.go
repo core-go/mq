@@ -11,12 +11,17 @@ type BatchHandler struct {
 	modelType  reflect.Type
 	modelsType reflect.Type
 	Write      func(ctx context.Context, models interface{}) ([]int, []int, error) // Return: Success indices, Fail indices, Error
+	Unmarshal  func(data []byte, v interface{}) error
+	Marshal    func(v interface{}) ([]byte, error)
 	LogError   func(context.Context, string)
 	LogInfo    func(context.Context, string)
 }
 
-func NewBatchHandler(writeBatch func(context.Context, interface{}) ([]int, []int, error), modelType reflect.Type, logs ...func(context.Context, string)) *BatchHandler {
+func NewBatchHandler(writeBatch func(context.Context, interface{}) ([]int, []int, error), modelType reflect.Type, unmarshal func(data []byte, v interface{}) error, logs ...func(context.Context, string)) *BatchHandler {
 	modelsType := reflect.Zero(reflect.SliceOf(modelType)).Type()
+	if unmarshal == nil {
+		unmarshal = json.Unmarshal
+	}
 	h := &BatchHandler{modelType: modelType, modelsType: modelsType, Write: writeBatch}
 	if len(logs) >= 1 {
 		h.LogError = logs[0]
@@ -39,7 +44,7 @@ func (h *BatchHandler) Handle(ctx context.Context, data []*Message) ([]*Message,
 			v = reflect.Append(v, v1)
 		} else {
 			item := InitModel(h.modelType)
-			err := json.Unmarshal(message.Data, item)
+			err := h.Unmarshal(message.Data, item)
 			if err != nil {
 				failMessages = append(failMessages, message)
 				return failMessages, fmt.Errorf(`cannot unmarshal item: %s. Error: %s`, message.Data, err.Error())
@@ -50,11 +55,15 @@ func (h *BatchHandler) Handle(ctx context.Context, data []*Message) ([]*Message,
 		}
 	}
 	if h.LogInfo != nil {
-		sv, er0 := json.Marshal(v.Interface())
-		if er0 != nil {
-			h.LogInfo(ctx, fmt.Sprintf(`models: %s`, v))
+		if h.Marshal != nil {
+			sv, er0 := h.Marshal(v.Interface())
+			if er0 != nil {
+				h.LogInfo(ctx, fmt.Sprintf(`models: %s`, v))
+			} else {
+				h.LogInfo(ctx, fmt.Sprintf(`models: %s`, sv))
+			}
 		} else {
-			h.LogInfo(ctx, fmt.Sprintf(`models: %s`, sv))
+			h.LogInfo(ctx, fmt.Sprintf(`models: %s`, v))
 		}
 	}
 	successIndices, failIndices, er1 := h.Write(ctx, v.Interface())

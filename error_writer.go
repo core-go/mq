@@ -8,16 +8,22 @@ import (
 )
 
 func NewErrorWriter(write func(ctx context.Context, model interface{}) error, modelType *reflect.Type, logError ...func(context.Context, string)) *ErrorWriter {
-	h := &ErrorWriter{Write: write, ModelType: modelType}
+	return NewErrorWriterWithUnmarshal(write, modelType, json.Unmarshal, logError...)
+}
+func NewErrorWriterWithUnmarshal(write func(ctx context.Context, model interface{}) error, modelType *reflect.Type, unmarshal func(data []byte, v interface{}) error, logError ...func(context.Context, string)) *ErrorWriter {
+	if unmarshal == nil {
+		unmarshal = json.Unmarshal
+	}
+	h := &ErrorWriter{Write: write, ModelType: modelType, Unmarshal: unmarshal}
 	if len(logError) >= 1 {
 		h.LogError = logError[0]
 	}
 	return h
 }
-
 type ErrorWriter struct {
 	Write     func(ctx context.Context, model interface{}) error
 	ModelType *reflect.Type
+	Unmarshal func(data []byte, v interface{}) error
 	LogError  func(context.Context, string)
 }
 
@@ -30,7 +36,7 @@ func (w *ErrorWriter) HandleError(ctx context.Context, data []byte, attrs map[st
 			return w.Write(ctx, data)
 		} else {
 			v := InitModel(*w.ModelType)
-			err := json.Unmarshal(data, v)
+			err := w.Unmarshal(data, v)
 			if err != nil {
 				return err
 			}

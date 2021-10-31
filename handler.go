@@ -22,30 +22,35 @@ type Handler struct {
 	Retry          func(context.Context, []byte, map[string]string) error
 	RetryCountName string
 	Error          func(context.Context, []byte, map[string]string) error
+	Unmarshal      func([]byte, interface{}) error
 	Retries        []time.Duration
 	Goroutines     bool
 	LogError       func(context.Context, string)
 	LogInfo        func(context.Context, string)
 }
 
-func NewHandlerByConfig(c HandlerConfig, write func(context.Context, interface{}) error, modelType *reflect.Type, retry func(context.Context, []byte, map[string]string) error, validate func(context.Context, *Message) error, handleError func(context.Context, []byte, map[string]string) error, logs ...func(context.Context, string)) *Handler {
-	return NewHandlerWithRetryService(write, modelType, c.LimitRetry, retry, c.RetryCountName, validate, handleError, c.Goroutines, logs...)
+func NewHandlerByConfig(c HandlerConfig, write func(context.Context, interface{}) error, modelType *reflect.Type, retry func(context.Context, []byte, map[string]string) error, validate func(context.Context, *Message) error, handleError func(context.Context, []byte, map[string]string) error, unmarshal func([]byte, interface{}) error, logs ...func(context.Context, string)) *Handler {
+	return NewHandlerWithRetryService(write, modelType, c.LimitRetry, retry, c.RetryCountName, validate, handleError, c.Goroutines, unmarshal, logs...)
 }
-func NewHandlerWithRetryConfig(write func(context.Context, interface{}) error, modelType *reflect.Type, validate func(context.Context, *Message) error, c *RetryConfig, goroutines bool, handleError func(context.Context, []byte, map[string]string) error, logs ...func(context.Context, string)) *Handler {
+func NewHandlerWithRetryConfig(write func(context.Context, interface{}) error, modelType *reflect.Type, validate func(context.Context, *Message) error, c *RetryConfig, goroutines bool, handleError func(context.Context, []byte, map[string]string) error, unmarshal func([]byte, interface{}) error, logs ...func(context.Context, string)) *Handler {
 	if c == nil {
-		return NewHandlerWithRetries(write, modelType, validate, nil, handleError, goroutines, logs...)
+		return NewHandlerWithRetries(write, modelType, validate, nil, handleError, goroutines, unmarshal, logs...)
 	}
 	retries := DurationsFromValue(*c, "Retry", 20)
 	if len(retries) == 0 {
-		return NewHandlerWithRetries(write, modelType, validate, nil, handleError, goroutines, logs...)
+		return NewHandlerWithRetries(write, modelType, validate, nil, handleError, goroutines, unmarshal, logs...)
 	}
-	return NewHandlerWithRetries(write, modelType, validate, retries, handleError, goroutines, logs...)
+	return NewHandlerWithRetries(write, modelType, validate, retries, handleError, goroutines, unmarshal, logs...)
 }
-func NewHandlerWithRetries(write func(context.Context, interface{}) error, modelType *reflect.Type, validate func(context.Context, *Message) error, retries []time.Duration, handleError func(context.Context, []byte, map[string]string) error, goroutines bool, logs ...func(context.Context, string)) *Handler {
+func NewHandlerWithRetries(write func(context.Context, interface{}) error, modelType *reflect.Type, validate func(context.Context, *Message) error, retries []time.Duration, handleError func(context.Context, []byte, map[string]string) error, goroutines bool, unmarshal func([]byte, interface{}) error, logs ...func(context.Context, string)) *Handler {
+	if unmarshal == nil {
+		unmarshal = json.Unmarshal
+	}
 	c := &Handler{
 		ModelType:  modelType,
 		Write:      write,
 		Validate:   validate,
+		Unmarshal:  unmarshal,
 		Goroutines: goroutines,
 		Error:      handleError,
 	}
@@ -60,18 +65,23 @@ func NewHandlerWithRetries(write func(context.Context, interface{}) error, model
 	}
 	return c
 }
-func NewHandler(write func(context.Context, interface{}) error, modelType *reflect.Type, validate func(context.Context, *Message) error, goroutines bool, logs ...func(context.Context, string)) *Handler {
-	return NewHandlerWithRetryService(write, modelType, -1, nil, "", validate, nil, goroutines, logs...)
+func NewHandler(write func(context.Context, interface{}) error, modelType *reflect.Type, validate func(context.Context, *Message) error, goroutines bool, unmarshal func([]byte, interface{}) error, logs ...func(context.Context, string)) *Handler {
+	return NewHandlerWithRetryService(write, modelType, -1, nil, "", validate, nil, goroutines, unmarshal, logs...)
 }
 func NewHandlerWithRetryService(write func(context.Context, interface{}) error, modelType *reflect.Type, limitRetry int, retry func(context.Context, []byte, map[string]string) error, retryCountName string, validate func(context.Context, *Message) error,
-	handleError func(context.Context, []byte, map[string]string) error,
-	goroutines bool, logs ...func(context.Context, string)) *Handler {
+		handleError func(context.Context, []byte, map[string]string) error,
+		goroutines bool,
+		unmarshal func([]byte, interface{}) error,
+		logs ...func(context.Context, string)) *Handler {
 	if len(retryCountName) == 0 {
 		retryCountName = "retryCount"
 	}
 	if retry != nil && handleError == nil {
 		e1 := NewErrorHandler(logs...)
 		handleError = e1.HandleError
+	}
+	if unmarshal == nil {
+		unmarshal = json.Unmarshal
 	}
 	c := &Handler{
 		ModelType:      modelType,
@@ -81,6 +91,7 @@ func NewHandlerWithRetryService(write func(context.Context, interface{}) error, 
 		Retry:          retry,
 		RetryCountName: retryCountName,
 		Error:          handleError,
+		Unmarshal:      unmarshal,
 		Goroutines:     goroutines,
 	}
 	if len(logs) >= 1 {
@@ -121,12 +132,10 @@ func (c *Handler) Handle(ctx context.Context, data []byte, header map[string]str
 	var item interface{}
 	if message.Value != nil {
 		item = message.Value
-	} else {
-		item = message.Data
 	}
 	if c.ModelType != nil && item == nil {
 		v := InitModel(*c.ModelType)
-		er1 := json.Unmarshal(message.Data, v)
+		er1 := c.Unmarshal(message.Data, v)
 		if er1 != nil {
 			if c.LogError != nil {
 				c.LogError(ctx, fmt.Sprintf(`cannot unmarshal item: %s. Error: %s`, message.Data, er1.Error()))

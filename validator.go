@@ -9,20 +9,27 @@ import (
 
 type Validator struct {
 	modelType reflect.Type
-	check     func(ctx context.Context, model interface{}) error
+	Check     func(ctx context.Context, model interface{}) error
+	Unmarshal func([]byte, interface{}) error
 }
 
-func NewValidator(modelType reflect.Type, check func(context.Context, interface{}) error) *Validator {
-	v := &Validator{modelType: modelType, check: check}
+func NewValidator(modelType reflect.Type, check func(context.Context, interface{}) error, opts...func([]byte, interface{}) error) *Validator {
+	var unmarshal func([]byte, interface{}) error
+	if len(opts) > 0 && opts[0] != nil {
+		unmarshal = opts[0]
+	} else {
+		unmarshal = json.Unmarshal
+	}
+	v := &Validator{modelType: modelType, Check: check, Unmarshal: unmarshal}
 	return v
 }
 
 func (v *Validator) Validate(ctx context.Context, message *Message) error {
 	item := InitModel(v.modelType)
-	err := json.Unmarshal(message.Data, item)
+	err := v.Unmarshal(message.Data, item)
 	if err != nil {
 		return fmt.Errorf(`cannot unmarshal item: %s. Error: %s`, message.Data, err.Error())
 	}
 	message.Value = item
-	return v.check(ctx, message.Value)
+	return v.Check(ctx, message.Value)
 }
