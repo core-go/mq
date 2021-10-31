@@ -1,4 +1,4 @@
-package amq
+package activemq
 
 type Config struct {
 	Addr             string `mapstructure:"addr" json:"addr,omitempty" gorm:"column:addr" bson:"addr,omitempty" dynamodbav:"addr,omitempty" firestore:"addr,omitempty"`

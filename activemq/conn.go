@@ -1,4 +1,4 @@
-package amq
+package activemq
 
 import (
 	"github.com/go-stomp/stomp"
