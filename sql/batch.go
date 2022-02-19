@@ -122,7 +122,7 @@ func BuildToInsertBatchWithSchema(table string, models interface{}, driver strin
 	if buildParam == nil {
 		buildParam = GetBuildByDriver(driver)
 	}
-	var cols []FieldDB
+	var cols []*FieldDB
 	// var schema map[string]FieldDB
 	if len(options) > 0 && options[0] != nil {
 		cols = options[0].Columns
@@ -163,7 +163,7 @@ func BuildToInsertBatchWithSchema(table string, models interface{}, driver strin
 					if isNil {
 						values = append(values, "null")
 					} else {
-						v, ok := GetDBValue(fieldValue, boolSupport)
+						v, ok := GetDBValue(fieldValue, boolSupport, fdb.Scale)
 						if ok {
 							values = append(values, v)
 						} else {
@@ -228,7 +228,7 @@ func BuildToInsertBatchWithSchema(table string, models interface{}, driver strin
 					}
 					if !isNil {
 						iCols = append(iCols, fdb.Column)
-						v, ok := GetDBValue(fieldValue, false)
+						v, ok := GetDBValue(fieldValue, false, fdb.Scale)
 						if ok {
 							values = append(values, v)
 						} else {

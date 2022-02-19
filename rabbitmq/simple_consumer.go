@@ -30,7 +30,7 @@ func NewSimpleConsumerByConfig(config ConsumerConfig, autoAck, ackOnConsume bool
 	if err != nil {
 		return nil, err
 	}
-	queue, err := channel.QueueDeclare(config.QueueName, false, false, true, false, nil)
+	queue, err := channel.QueueDeclare(config.QueueName, true, false, false, false, nil)
 	if err != nil {
 		return nil, err
 	}

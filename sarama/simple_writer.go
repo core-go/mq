@@ -26,6 +26,18 @@ func NewSimpleWriterByConfig(c WriterConfig, convert func(context.Context, []byt
 	}
 	return NewSimpleWriter(*writer, convert, options...)
 }
+func (p *SimpleWriter) Publish(ctx context.Context, topic string, data []byte, attributes map[string]string) (string, error) {
+	return p.Write(ctx, topic, data, attributes)
+}
+func (p *SimpleWriter) Send(ctx context.Context, topic string, data []byte, attributes map[string]string) (string, error) {
+	return p.Write(ctx, topic, data, attributes)
+}
+func (p *SimpleWriter) Put(ctx context.Context, topic string, data []byte, attributes map[string]string) (string, error) {
+	return p.Write(ctx, topic, data, attributes)
+}
+func (p *SimpleWriter) Produce(ctx context.Context, topic string, data []byte, attributes map[string]string) (string, error) {
+	return p.Write(ctx, topic, data, attributes)
+}
 func (p *SimpleWriter) Write(ctx context.Context, topic string, data []byte, messageAttributes map[string]string) (string, error) {
 	var binary = data
 	var err error
@@ -57,6 +69,18 @@ func (p *SimpleWriter) Write(ctx context.Context, topic string, data []byte, mes
 		b, _ := json.Marshal(m)
 		return string(b), err
 	}
+}
+func (p *SimpleWriter) PublishWithKey(ctx context.Context, topic string, data []byte, key string, attributes map[string]string) (string, error) {
+	return p.WriteWithKey(ctx, topic, data, key, attributes)
+}
+func (p *SimpleWriter) SendWithKey(ctx context.Context, topic string, data []byte, key string, attributes map[string]string) (string, error) {
+	return p.WriteWithKey(ctx, topic, data, key, attributes)
+}
+func (p *SimpleWriter) PutWithKey(ctx context.Context, topic string, data []byte, key string, attributes map[string]string) (string, error) {
+	return p.WriteWithKey(ctx, topic, data, key, attributes)
+}
+func (p *SimpleWriter) ProduceWithKey(ctx context.Context, topic string, data []byte, key string, attributes map[string]string) (string, error) {
+	return p.WriteWithKey(ctx, topic, data, key, attributes)
 }
 func (p *SimpleWriter) WriteWithKey(ctx context.Context, topic string, data []byte, key string, messageAttributes map[string]string) (string, error) {
 	var binary = data

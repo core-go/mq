@@ -31,7 +31,18 @@ func NewWriterByConfig(c WriterConfig, convert func(context.Context, []byte)([]b
 	writer := NewKafkaWriter(c.Topic, c.Brokers, dialer)
 	return NewWriter(writer, convert, options...)
 }
-
+func (p *Writer) Put(ctx context.Context, data []byte, attributes map[string]string) (string, error) {
+	return p.Write(ctx, data, attributes)
+}
+func (p *Writer) Send(ctx context.Context, data []byte, attributes map[string]string) (string, error) {
+	return p.Write(ctx, data, attributes)
+}
+func (p *Writer) Produce(ctx context.Context, data []byte, attributes map[string]string) (string, error) {
+	return p.Write(ctx, data, attributes)
+}
+func (p *Writer) Publish(ctx context.Context, data []byte, attributes map[string]string) (string, error) {
+	return p.Write(ctx, data, attributes)
+}
 func (p *Writer) Write(ctx context.Context, data []byte, attributes map[string]string) (string, error) {
 	var binary = data
 	var err error

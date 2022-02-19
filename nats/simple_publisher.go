@@ -33,6 +33,18 @@ func NewSimplePublisherByConfig(p PublisherConfig, options...func(context.Contex
 		return NewSimplePublisher(conn, options...), nil
 	}
 }
+func (p *SimplePublisher) Put(ctx context.Context, subject string, data []byte, attributes map[string]string) (string, error) {
+	return p.Publish(ctx, subject, data, attributes)
+}
+func (p *SimplePublisher) Send(ctx context.Context, subject string, data []byte, attributes map[string]string) (string, error) {
+	return p.Publish(ctx, subject, data, attributes)
+}
+func (p *SimplePublisher) Write(ctx context.Context, subject string, data []byte, attributes map[string]string) (string, error) {
+	return p.Publish(ctx, subject, data, attributes)
+}
+func (p *SimplePublisher) Produce(ctx context.Context, subject string, data []byte, attributes map[string]string) (string, error) {
+	return p.Publish(ctx, subject, data, attributes)
+}
 func (p *SimplePublisher) Publish(ctx context.Context, subject string, data []byte, attributes map[string]string) (string, error) {
 	defer p.Conn.Flush()
 	var binary = data

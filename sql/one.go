@@ -32,7 +32,7 @@ func BuildToInsertWithSchema(table string, model interface{}, versionIndex int, 
 	sql.Scanner
 }, options ...*Schema) (string, []interface{}) {
 	modelType := reflect.TypeOf(model)
-	var cols []FieldDB
+	var cols []*FieldDB
 	if len(options) > 0 && options[0] != nil {
 		cols = options[0].Columns
 	} else {
@@ -70,7 +70,7 @@ func BuildToInsertWithSchema(table string, model interface{}, versionIndex int, 
 					}
 				} else {
 					icols = append(icols, fdb.Column)
-					v, ok := GetDBValue(fieldValue, boolSupport)
+					v, ok := GetDBValue(fieldValue, boolSupport, fdb.Scale)
 					if ok {
 						values = append(values, v)
 					} else {
@@ -124,7 +124,7 @@ func BuildToUpdateWithVersion(table string, model interface{}, versionIndex int,
 	driver.Valuer
 	sql.Scanner
 }, options ...*Schema) (string, []interface{}) {
-	var cols, keys []FieldDB
+	var cols, keys []*FieldDB
 	// var schema map[string]FieldDB
 	modelType := reflect.TypeOf(model)
 	if len(options) > 0 && options[0] != nil {
@@ -167,7 +167,7 @@ func BuildToUpdateWithVersion(table string, model interface{}, versionIndex int,
 			if isNil {
 				values = append(values, fdb.Column+"=null")
 			} else {
-				v, ok := GetDBValue(fieldValue, boolSupport)
+				v, ok := GetDBValue(fieldValue, boolSupport, fdb.Scale)
 				if ok {
 					values = append(values, fdb.Column+"="+v)
 				} else {
@@ -210,7 +210,7 @@ func BuildToUpdateWithVersion(table string, model interface{}, versionIndex int,
 				fieldValue = reflect.Indirect(reflect.ValueOf(fieldValue)).Interface()
 			}
 		}
-		v, ok := GetDBValue(fieldValue, boolSupport)
+		v, ok := GetDBValue(fieldValue, boolSupport, fdb.Scale)
 		if ok {
 			where = append(where, fdb.Column+"="+v)
 		} else {
@@ -225,22 +225,21 @@ func BuildToUpdateWithVersion(table string, model interface{}, versionIndex int,
 	query := fmt.Sprintf("update %v set %v where %v", table, strings.Join(values, ","), strings.Join(where, " and "))
 	return query, args
 }
-func BuildToPatch(table string, model map[string]interface{}, keyColumns []string, buildParam func(int) string, options ...map[string]FieldDB) (string, []interface{}) {
+func BuildToPatch(table string, model map[string]interface{}, keyColumns []string, buildParam func(int) string, options ...map[string]*FieldDB) (string, []interface{}) {
 	return BuildToPatchWithVersion(table, model, keyColumns, buildParam, nil, "", options...)
 }
 func BuildToPatchWithArray(table string, model map[string]interface{}, keyColumns []string, buildParam func(int) string, toArray func(interface{}) interface {
 	driver.Valuer
 	sql.Scanner
-}, options ...map[string]FieldDB) (string, []interface{}) {
+}, options ...map[string]*FieldDB) (string, []interface{}) {
 	return BuildToPatchWithVersion(table, model, keyColumns, buildParam, toArray, "", options...)
 }
-
 // BuildToPatchWithVersion3 model with db column name
 func BuildToPatchWithVersion(table string, model map[string]interface{}, keyColumns []string, buildParam func(int) string, toArray func(interface{}) interface {
 	driver.Valuer
 	sql.Scanner
-}, version string, options ...map[string]FieldDB) (string, []interface{}) { //version column name db
-	var schema map[string]FieldDB
+}, version string, options ...map[string]*FieldDB) (string, []interface{}) { //version column name db
+	var schema map[string]*FieldDB
 	if len(options) > 0 {
 		schema = options[0]
 	}
@@ -253,7 +252,7 @@ func BuildToPatchWithVersion(table string, model map[string]interface{}, keyColu
 			if v == nil {
 				values = append(values, col+"=null")
 			} else {
-				v2, ok2 := GetDBValue(v, false)
+				v2, ok2 := GetDBValue(v, false, -1)
 				if ok2 {
 					values = append(values, col+"="+v2)
 				} else {
@@ -305,7 +304,7 @@ func BuildToPatchWithVersion(table string, model map[string]interface{}, keyColu
 	for _, col := range keyColumns {
 		v0, ok0 := model[col]
 		if ok0 {
-			v, ok1 := GetDBValue(v0, false)
+			v, ok1 := GetDBValue(v0, false, -1)
 			if ok1 {
 				where = append(where, col+"="+v)
 			} else {

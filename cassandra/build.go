@@ -7,8 +7,6 @@ import (
 	"strings"
 )
 
-const IgnoreReadWrite = "-"
-
 func BuildParam(i int) string {
 	return "?"
 }
@@ -21,7 +19,7 @@ func BuildToSave(table string, model interface{}, options ...*Schema) (string, [
 func BuildToInsertWithVersion(table string, model interface{}, versionIndex int, orUpdate bool, options ...*Schema) (string, []interface{}) {
 	buildParam := BuildParam
 	modelType := reflect.TypeOf(model)
-	var cols []FieldDB
+	var cols []*FieldDB
 	if len(options) > 0 && options[0] != nil {
 		cols = options[0].Columns
 	} else {
@@ -37,7 +35,6 @@ func BuildToInsertWithVersion(table string, model interface{}, versionIndex int,
 	icols := make([]string, 0)
 	i := 1
 	for _, fdb := range cols {
-		// fdb := schema[col]
 		if fdb.Index == versionIndex {
 			icols = append(icols, fdb.Column)
 			values = append(values, "1")
@@ -60,7 +57,7 @@ func BuildToInsertWithVersion(table string, model interface{}, versionIndex int,
 					}
 				} else {
 					icols = append(icols, fdb.Column)
-					v, ok := GetDBValue(fieldValue)
+					v, ok := GetDBValue(fieldValue, fdb.Scale)
 					if ok {
 						values = append(values, v)
 					} else {
@@ -79,7 +76,7 @@ func BuildToUpdate(table string, model interface{}, options ...*Schema) (string,
 }
 func BuildToUpdateWithVersion(table string, model interface{}, versionIndex int, options ...*Schema) (string, []interface{}) {
 	buildParam := BuildParam
-	var cols, keys []FieldDB
+	var cols, keys []*FieldDB
 	modelType := reflect.TypeOf(model)
 	if len(options) > 0 && options[0] != nil {
 		m := options[0]
@@ -122,7 +119,7 @@ func BuildToUpdateWithVersion(table string, model interface{}, versionIndex int,
 			if isNil {
 				values = append(values, fdb.Column+"=null")
 			} else {
-				v, ok := GetDBValue(fieldValue)
+				v, ok := GetDBValue(fieldValue, fdb.Scale)
 				if ok {
 					values = append(values, fdb.Column+"="+v)
 				} else {
@@ -142,7 +139,7 @@ func BuildToUpdateWithVersion(table string, model interface{}, versionIndex int,
 				fieldValue = reflect.Indirect(reflect.ValueOf(fieldValue)).Interface()
 			}
 		}
-		v, ok := GetDBValue(fieldValue)
+		v, ok := GetDBValue(fieldValue, fdb.Scale)
 		if ok {
 			where = append(where, fdb.Column+"="+v)
 		} else {

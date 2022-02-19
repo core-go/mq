@@ -37,7 +37,18 @@ func NewSimpleSubscriberByConfig(c Config, ackMode stomp.AckMode, ackOnConsume b
 	}
 	return NewSimpleSubscriber(client, c.DestinationName, c.SubscriptionName, ackMode, ackOnConsume, options...)
 }
-
+func (c *SimpleSubscriber) Receive(ctx context.Context, handle func(context.Context, []byte, map[string]string, error) error) {
+	c.Subscribe(ctx, handle)
+}
+func (c *SimpleSubscriber) Get(ctx context.Context, handle func(context.Context, []byte, map[string]string, error) error) {
+	c.Subscribe(ctx, handle)
+}
+func (c *SimpleSubscriber) Read(ctx context.Context, handle func(context.Context, []byte, map[string]string, error) error) {
+	c.Subscribe(ctx, handle)
+}
+func (c *SimpleSubscriber) Consume(ctx context.Context, handle func(context.Context, []byte, map[string]string, error) error) {
+	c.Subscribe(ctx, handle)
+}
 func (c *SimpleSubscriber) Subscribe(ctx context.Context, handle func(context.Context, []byte, map[string]string, error) error) {
 	for msg := range c.Subscription.C {
 		attributes := HeaderToMap(msg.Header)

@@ -19,7 +19,18 @@ func NewSimpleSender(client *sqs.SQS, delaySeconds int64, options ...func(contex
 	}
 	return &SimpleSender{Client: client, DelaySeconds: &delaySeconds, Convert: convert}
 }
-
+func (p *SimpleSender) Publish(ctx context.Context, queueName string, data []byte, attributes map[string]string) (string, error) {
+	return p.Send(ctx, queueName, data, attributes)
+}
+func (p *SimpleSender) Put(ctx context.Context, queueName string, data []byte, attributes map[string]string) (string, error) {
+	return p.Send(ctx, queueName, data, attributes)
+}
+func (p *SimpleSender) Write(ctx context.Context, queueName string, data []byte, attributes map[string]string) (string, error) {
+	return p.Send(ctx, queueName, data, attributes)
+}
+func (p *SimpleSender) Produce(ctx context.Context, queueName string, data []byte, attributes map[string]string) (string, error) {
+	return p.Send(ctx, queueName, data, attributes)
+}
 func (p *SimpleSender) Send(ctx context.Context, queueName string, data []byte, attributes map[string]string) (string, error) {
 	queueUrl, err := GetQueueUrl(p.Client, queueName)
 	if err != nil {

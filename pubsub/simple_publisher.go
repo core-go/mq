@@ -35,12 +35,23 @@ func NewSimplePublisherByConfig(ctx context.Context, c PublisherConfig, options.
 		return NewSimplePublisher(client, c.Topic, options...), nil
 	}
 }
-
-func (c *SimplePublisher) Publish(ctx context.Context, topicId string, data []byte, attributes map[string]string) (string, error) {
+func (p *SimplePublisher) Put(ctx context.Context, topicId string, data []byte, attributes map[string]string) (string, error) {
+	return p.Publish(ctx, topicId, data, attributes)
+}
+func (p *SimplePublisher) Send(ctx context.Context, topicId string, data []byte, attributes map[string]string) (string, error) {
+	return p.Publish(ctx, topicId, data, attributes)
+}
+func (p *SimplePublisher) Write(ctx context.Context, topicId string, data []byte, attributes map[string]string) (string, error) {
+	return p.Publish(ctx, topicId, data, attributes)
+}
+func (p *SimplePublisher) Produce(ctx context.Context, topicId string, data []byte, attributes map[string]string) (string, error) {
+	return p.Publish(ctx, topicId, data, attributes)
+}
+func (p *SimplePublisher) Publish(ctx context.Context, topicId string, data []byte, attributes map[string]string) (string, error) {
 	var binary = data
 	var err error
-	if c.Convert != nil {
-		binary, err = c.Convert(ctx, data)
+	if p.Convert != nil {
+		binary, err = p.Convert(ctx, data)
 		if err != nil {
 			return "", err
 		}
@@ -51,8 +62,8 @@ func (c *SimplePublisher) Publish(ctx context.Context, topicId string, data []by
 	if attributes != nil {
 		msg.Attributes = attributes
 	}
-	topic := c.Client.Topic(topicId)
-	topic = ConfigureTopic(topic, c.Config)
+	topic := p.Client.Topic(topicId)
+	topic = ConfigureTopic(topic, p.Config)
 	publishResult := topic.Publish(ctx, msg)
 	return publishResult.Get(ctx)
 }

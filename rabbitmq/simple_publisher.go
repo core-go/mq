@@ -40,7 +40,18 @@ func NewSimplePublisherByConfig(config PublisherConfig, options...func(context.C
 	}
 	return NewSimplePublisher(channel, config.ExchangeName, config.Key, config.ContentType, options...)
 }
-
+func (p *SimplePublisher) Put(ctx context.Context, exchangeName string, data []byte, attributes map[string]string) (string, error) {
+	return p.Publish(ctx, exchangeName, data, attributes)
+}
+func (p *SimplePublisher) Send(ctx context.Context, exchangeName string, data []byte, attributes map[string]string) (string, error) {
+	return p.Publish(ctx, exchangeName, data, attributes)
+}
+func (p *SimplePublisher) Write(ctx context.Context, exchangeName string, data []byte, attributes map[string]string) (string, error) {
+	return p.Publish(ctx, exchangeName, data, attributes)
+}
+func (p *SimplePublisher) Produce(ctx context.Context, exchangeName string, data []byte, attributes map[string]string) (string, error) {
+	return p.Publish(ctx, exchangeName, data, attributes)
+}
 func (p *SimplePublisher) Publish(ctx context.Context, exchangeName string, data []byte, attributes map[string]string) (string, error) {
 	var binary = data
 	var err error

@@ -33,6 +33,18 @@ func NewSenderByConfig(c Config, contentType string) (*Sender, error) {
 	return NewSender(conn, c.DestinationName, c.SubscriptionName, contentType), nil
 }
 
+func (p *Sender) Put(ctx context.Context, data []byte, attributes map[string]string) (string, error) {
+	return p.Send(ctx, data, attributes)
+}
+func (p *Sender) Write(ctx context.Context, data []byte, attributes map[string]string) (string, error) {
+	return p.Send(ctx, data, attributes)
+}
+func (p *Sender) Produce(ctx context.Context, data []byte, attributes map[string]string) (string, error) {
+	return p.Send(ctx, data, attributes)
+}
+func (p *Sender) Publish(ctx context.Context, data []byte, attributes map[string]string) (string, error) {
+	return p.Send(ctx, data, attributes)
+}
 func (p *Sender) Send(ctx context.Context, data []byte, attributes map[string]string) (string, error) {
 	opts := MapToFrame(attributes)
 	var binary = data

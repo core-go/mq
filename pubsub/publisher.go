@@ -60,12 +60,23 @@ func ConfigureTopic(topic *pubsub.Topic, c *TopicConfig) *pubsub.Topic {
 	}
 	return topic
 }
-
-func (c *Publisher) Publish(ctx context.Context, data []byte, attributes map[string]string) (string, error) {
+func (p *Publisher) Put(ctx context.Context, data []byte, attributes map[string]string) (string, error) {
+	return p.Publish(ctx, data, attributes)
+}
+func (p *Publisher) Send(ctx context.Context, data []byte, attributes map[string]string) (string, error) {
+	return p.Publish(ctx, data, attributes)
+}
+func (p *Publisher) Produce(ctx context.Context, data []byte, attributes map[string]string) (string, error) {
+	return p.Publish(ctx, data, attributes)
+}
+func (p *Publisher) Write(ctx context.Context, data []byte, attributes map[string]string) (string, error) {
+	return p.Publish(ctx, data, attributes)
+}
+func (p *Publisher) Publish(ctx context.Context, data []byte, attributes map[string]string) (string, error) {
 	var binary = data
 	var err error
-	if c.Convert != nil {
-		binary, err = c.Convert(ctx, data)
+	if p.Convert != nil {
+		binary, err = p.Convert(ctx, data)
 		if err != nil {
 			return "", err
 		}
@@ -77,7 +88,7 @@ func (c *Publisher) Publish(ctx context.Context, data []byte, attributes map[str
 		msg.Attributes = attributes
 	}
 
-	publishResult := c.Topic.Publish(ctx, msg)
+	publishResult := p.Topic.Publish(ctx, msg)
 	return publishResult.Get(ctx)
 }
 

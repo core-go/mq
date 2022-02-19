@@ -115,7 +115,30 @@ func NewSyncProducerByConfig(c WriterConfig) (*sarama.SyncProducer, error) {
 	}
 	return &writer, nil
 }
-
+func (p *Writer) Put(ctx context.Context, data []byte, attributes map[string]string) (string, error) {
+	return p.Write(ctx, data, attributes)
+}
+func (p *Writer) Send(ctx context.Context, data []byte, attributes map[string]string) (string, error) {
+	return p.Write(ctx, data, attributes)
+}
+func (p *Writer) Produce(ctx context.Context, data []byte, attributes map[string]string) (string, error) {
+	return p.Write(ctx, data, attributes)
+}
+func (p *Writer) Publish(ctx context.Context, data []byte, attributes map[string]string) (string, error) {
+	return p.Write(ctx, data, attributes)
+}
+func (p *Writer) PutWithKey(ctx context.Context, data []byte, key string, attributes map[string]string) (string, error) {
+	return p.WriteWithKey(ctx, data, key, attributes)
+}
+func (p *Writer) SendWithKey(ctx context.Context, data []byte, key string, attributes map[string]string) (string, error) {
+	return p.WriteWithKey(ctx, data, key, attributes)
+}
+func (p *Writer) ProduceWithKey(ctx context.Context, data []byte, key string, attributes map[string]string) (string, error) {
+	return p.WriteWithKey(ctx, data, key, attributes)
+}
+func (p *Writer) PublishWithKey(ctx context.Context, data []byte, key string, attributes map[string]string) (string, error) {
+	return p.WriteWithKey(ctx, data, key, attributes)
+}
 func (p *Writer) Write(ctx context.Context, data []byte, messageAttributes map[string]string) (string, error) {
 	var binary = data
 	var err error

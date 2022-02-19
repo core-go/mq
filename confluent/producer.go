@@ -102,7 +102,18 @@ func NewProducerWithRetryArray(c ProducerConfig, retries []time.Duration, conver
 	}
 	return p, err
 }
-
+func (p *Producer) Put(ctx context.Context, data []byte, attributes map[string]string) (string, error) {
+	return p.Produce(ctx, data, attributes)
+}
+func (p *Producer) Write(ctx context.Context, data []byte, attributes map[string]string) (string, error) {
+	return p.Produce(ctx, data, attributes)
+}
+func (p *Producer) Publish(ctx context.Context, data []byte, attributes map[string]string) (string, error) {
+	return p.Produce(ctx, data, attributes)
+}
+func (p *Producer) Send(ctx context.Context, data []byte, attributes map[string]string) (string, error) {
+	return p.Produce(ctx, data, attributes)
+}
 func (p *Producer) Produce(ctx context.Context, data []byte, messageAttributes map[string]string) (string, error) {
 	var binary = data
 	var err error

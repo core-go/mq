@@ -100,7 +100,18 @@ func NewKafkaProducerByConfig(c ProducerConfig) (*kafka.Producer, error) {
 
 	return kafka.NewProducer(&conf)
 }
-
+func (p *SimpleProducer) Put(ctx context.Context, topic string, data []byte, attributes map[string]string) (string, error) {
+	return p.Produce(ctx, topic, data, attributes)
+}
+func (p *SimpleProducer) Send(ctx context.Context, topic string, data []byte, attributes map[string]string) (string, error) {
+	return p.Produce(ctx, topic, data, attributes)
+}
+func (p *SimpleProducer) Write(ctx context.Context, topic string, data []byte, attributes map[string]string) (string, error) {
+	return p.Produce(ctx, topic, data, attributes)
+}
+func (p *SimpleProducer) Publish(ctx context.Context, topic string, data []byte, attributes map[string]string) (string, error) {
+	return p.Produce(ctx, topic, data, attributes)
+}
 func (p *SimpleProducer) Produce(ctx context.Context, topic string, data []byte, messageAttributes map[string]string) (string, error) {
 	var binary = data
 	var err error

@@ -32,7 +32,18 @@ func NewSimplePublisherByConfig(c QueueConfig, auth MQAuth, options...func(conte
 		Convert: convert,
 	}, nil
 }
-
+func (p *SimplePublisher) Put(ctx context.Context, queueName string, data []byte, attributes map[string]string) (string, error) {
+	return p.Publish(ctx, queueName, data, attributes)
+}
+func (p *SimplePublisher) Send(ctx context.Context, queueName string, data []byte, attributes map[string]string) (string, error) {
+	return p.Publish(ctx, queueName, data, attributes)
+}
+func (p *SimplePublisher) Write(ctx context.Context, queueName string, data []byte, attributes map[string]string) (string, error) {
+	return p.Publish(ctx, queueName, data, attributes)
+}
+func (p *SimplePublisher) Produce(ctx context.Context, queueName string, data []byte, attributes map[string]string) (string, error) {
+	return p.Publish(ctx, queueName, data, attributes)
+}
 func (p *SimplePublisher) Publish(ctx context.Context, queueName string, data []byte, attributes map[string]string) (string, error) {
 	openOptions := ibmmq.MQOO_OUTPUT
 	od := ibmmq.NewMQOD()

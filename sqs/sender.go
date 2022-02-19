@@ -28,7 +28,18 @@ func NewSender(client *sqs.SQS, queueURL string, delaySeconds int64, options...f
 	}
 	return &Sender{Client: client, QueueURL: &queueURL, DelaySeconds: &delaySeconds, Convert: convert}
 }
-
+func (p *Sender) Put(ctx context.Context, data []byte, attributes map[string]string) (string, error) {
+	return p.Send(ctx, data, attributes)
+}
+func (p *Sender) Write(ctx context.Context, data []byte, attributes map[string]string) (string, error) {
+	return p.Send(ctx, data, attributes)
+}
+func (p *Sender) Produce(ctx context.Context, data []byte, attributes map[string]string) (string, error) {
+	return p.Send(ctx, data, attributes)
+}
+func (p *Sender) Publish(ctx context.Context, data []byte, attributes map[string]string) (string, error) {
+	return p.Send(ctx, data, attributes)
+}
 func (p *Sender) Send(ctx context.Context, data []byte, attributes map[string]string) (string, error) {
 	attrs := MapToAttributes(attributes)
 	var binary = data

@@ -29,7 +29,18 @@ func NewSimpleSenderByConfig(c Config, contentType string, options ...func(conte
 	}
 	return NewSimpleSender(conn, contentType, options...), nil
 }
-
+func (p *SimpleSender) Put(ctx context.Context, destination string, data []byte, attributes map[string]string) (string, error) {
+	return p.Send(ctx, destination, data, attributes)
+}
+func (p *SimpleSender) Write(ctx context.Context, destination string, data []byte, attributes map[string]string) (string, error) {
+	return p.Send(ctx, destination, data, attributes)
+}
+func (p *SimpleSender) Produce(ctx context.Context, destination string, data []byte, attributes map[string]string) (string, error) {
+	return p.Send(ctx, destination, data, attributes)
+}
+func (p *SimpleSender) Publish(ctx context.Context, destination string, data []byte, attributes map[string]string) (string, error) {
+	return p.Send(ctx, destination, data, attributes)
+}
 func (p *SimpleSender) Send(ctx context.Context, destination string, data []byte, attributes map[string]string) (string, error) {
 	opts := MapToFrame(attributes)
 	var binary = data

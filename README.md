@@ -7,9 +7,9 @@ Support these message queues:
 - Google Cloud Pub/Sub at [pubsub](https://github.com/core-go/mq/tree/main/pubsub)
 - Kafka: at [segmentio/kafka-go](https://github.com/core-go/mq/tree/main/kafka), [Shopify/sarama](https://github.com/core-go/mq/tree/main/sarama) and [confluent](https://github.com/core-go/mq/tree/main/confluent)
 - NATS at [nats](https://github.com/core-go/mq/tree/main/nats)
-- Active MQ at [amq](https://github.com/core-go/mq/tree/main/amq)
+- Active MQ at [activemq](https://github.com/core-go/mq/tree/main/activemq)
 - RabbitMQ at [rabbitmq](https://github.com/core-go/mq/tree/main/rabbitmq)
-- IBM MQ at [ibm-mq](https://github.com/core-go/mq/tree/main/ibm-mq)
+- IBM MQ at [ibmmq](https://github.com/core-go/mq/tree/main/ibmmq)
 
 ##### The samples are [go-subscription](https://github.com/project-samples/go-subscription) and [go-batch-subscription](https://github.com/project-samples/go-batch-subscription)
 
