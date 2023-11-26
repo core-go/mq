@@ -1,5 +1,5 @@
 # mq
-![Message Queue](https://camo.githubusercontent.com/25ff46695aa80731f9814cff5036e38f65597cf76fd0cb93a1425745184a807a/68747470733a2f2f63646e2d696d616765732d312e6d656469756d2e636f6d2f6d61782f3830302f312a355049763841616a34673031585050466169433059412e706e67)
+![Message Queue](https://camo.githubusercontent.com/31291934a502f50fda6ec65981f77e601efa450f7ef32b3e4bd9041355d68e3e/68747470733a2f2f63646e2d696d616765732d312e6d656469756d2e636f6d2f6d61782f3830302f312a55624b4a753242634159696d385f6f4a67384e7336412e706e67)
 
 ## Implementations
 Support these message queues:
@@ -10,8 +10,6 @@ Support these message queues:
 - Active MQ at [activemq](https://github.com/core-go/mq/tree/main/activemq)
 - RabbitMQ at [rabbitmq](https://github.com/core-go/mq/tree/main/rabbitmq)
 - IBM MQ at [ibmmq](https://github.com/core-go/mq/tree/main/ibmmq)
-
-##### The samples are [go-subscription](https://github.com/project-samples/go-subscription) and [go-batch-subscription](https://github.com/project-samples/go-batch-subscription)
 
 ## Installation
 Please make sure to initialize a Go module before installing core-go/mq:
@@ -29,3 +27,16 @@ Build for confluent:
 ```go
 go build -buildmode=exe main.go
 ```
+
+### Flow to consume a message from a queue
+![Flow to consume a message](https://camo.githubusercontent.com/782bbf69a516401c3918b7e920d8fc25521112d8b04e890f2455768551f6d64e/68747470733a2f2f63646e2d696d616765732d312e6d656469756d2e636f6d2f6d61782f3830302f312a593451554e36516e666d4a67614b6967634e486251412e706e67)
+- Consume a message from queue, then write the message to database (SQL, Mongo, Casandra, Dynamodb, Firestore, Elasticsearch)
+- Support these databases
+    - SQL
+    - Mongo
+    - Casandra
+    - Dynamodb
+    - Firestore
+    - Elasticsearch
+#### The sample is [go-subscription]
+- Another sample to consume message and handle by batch is [go-batch-subscription](https://github.com/project-samples/go-batch-subscription)
