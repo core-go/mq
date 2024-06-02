@@ -26,11 +26,20 @@ func NewHandlerByConfig[T any](c *RetryConfig,
 	reject func(context.Context, *T, []ErrorMessage, []byte),
 	handleError func(context.Context, []byte),
 	goroutines bool, key string, logs ...func(context.Context, string)) *Handler[T] {
+	return NewHandlerByConfigAndUnmarshal[T](c, nil, write, validate, reject, handleError, goroutines, key, logs...)
+}
+func NewHandlerByConfigAndUnmarshal[T any](c *RetryConfig,
+	unmarshal func(data []byte, v any) error,
+	write func(context.Context, *T) error,
+	validate func(context.Context, *T) ([]ErrorMessage, error),
+	reject func(context.Context, *T, []ErrorMessage, []byte),
+	handleError func(context.Context, []byte),
+	goroutines bool, key string, logs ...func(context.Context, string)) *Handler[T] {
 	if c == nil {
-		return NewHandlerWithKey[T](nil, write, validate, reject, handleError, nil, goroutines, key, logs...)
+		return NewHandlerWithKey[T](unmarshal, write, validate, reject, handleError, nil, goroutines, key, logs...)
 	} else {
 		retries := DurationsFromValue(*c, "Retry", 20)
-		return NewHandlerWithKey[T](nil, write, validate, reject, handleError, retries, goroutines, key, logs...)
+		return NewHandlerWithKey[T](unmarshal, write, validate, reject, handleError, retries, goroutines, key, logs...)
 	}
 }
 func NewHandlerWithKey[T any](

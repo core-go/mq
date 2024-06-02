@@ -29,6 +29,27 @@ type RetryHandler[T any] struct {
 	Key            string
 }
 
+func NewRetryHandlerByConfig[T any](
+	c HandlerConfig,
+	write func(context.Context, *T) error,
+	validate func(context.Context, *T) ([]ErrorMessage, error),
+	reject func(context.Context, *T, []ErrorMessage, []byte, map[string]string),
+	handleError func(context.Context, []byte, map[string]string),
+	retry func(context.Context, []byte, map[string]string) error,
+	logs ...func(context.Context, string)) *RetryHandler[T] {
+	return NewRetryHandler[T](nil, write, validate, reject, handleError, retry, c.LimitRetry, c.RetryCountName, c.Goroutines, c.Key, logs...)
+}
+func NewRetryHandlerByConfigAndUnmarshal[T any](
+	c HandlerConfig,
+	unmarshal func(data []byte, v any) error,
+	write func(context.Context, *T) error,
+	validate func(context.Context, *T) ([]ErrorMessage, error),
+	reject func(context.Context, *T, []ErrorMessage, []byte, map[string]string),
+	handleError func(context.Context, []byte, map[string]string),
+	retry func(context.Context, []byte, map[string]string) error,
+	logs ...func(context.Context, string)) *RetryHandler[T] {
+	return NewRetryHandler[T](unmarshal, write, validate, reject, handleError, retry, c.LimitRetry, c.RetryCountName, c.Goroutines, c.Key, logs...)
+}
 func NewRetryHandler[T any](
 	unmarshal func(data []byte, v any) error,
 	write func(context.Context, *T) error,
