@@ -7,6 +7,7 @@ type Message[T any] struct {
 	Attributes map[string]string `yaml:"attributes" mapstructure:"attributes" json:"attributes,omitempty" gorm:"column:attributes" bson:"attributes,omitempty" dynamodbav:"attributes,omitempty" firestore:"attributes,omitempty"`
 	Value      T                 `yaml:"value" mapstructure:"value" json:"value,omitempty" gorm:"column:value" bson:"value,omitempty" dynamodbav:"value,omitempty" firestore:"value,omitempty"`
 }
+
 type BatchHandler[T any] struct {
 	Write func(context.Context, []T) ([]int, error) // Return: Fail indices, Error
 }
