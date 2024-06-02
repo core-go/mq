@@ -4,95 +4,69 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"reflect"
-	"strconv"
 	"time"
 )
 
 type HandlerConfig struct {
-	RetryCountName string `mapstructure:"retry_count_name" json:"retryCountName,omitempty" gorm:"column:retrycountname" bson:"retryCountName,omitempty" dynamodbav:"retryCountName,omitempty" firestore:"retryCountName,omitempty"`
-	LimitRetry     int    `mapstructure:"limit_retry" json:"limitRetry,omitempty" gorm:"column:limitretry" bson:"limitRetry,omitempty" dynamodbav:"limitRetry,omitempty" firestore:"limitRetry,omitempty"`
-	Goroutines     bool   `mapstructure:"goroutines" json:"goroutines,omitempty" gorm:"column:goroutines" bson:"goroutines,omitempty" dynamodbav:"goroutines,omitempty" firestore:"goroutines,omitempty"`
+	Retry      *RetryConfig `yaml:"retry" mapstructure:"retry" json:"retry,omitempty" gorm:"column:retry" bson:"retry,omitempty" dynamodbav:"retry,omitempty" firestore:"retry,omitempty"`
+	Goroutines bool         `yaml:"goroutines" mapstructure:"goroutines" json:"goroutines,omitempty" gorm:"column:goroutines" bson:"goroutines,omitempty" dynamodbav:"goroutines,omitempty" firestore:"goroutines,omitempty"`
+	Key        string       `yaml:"key" mapstructure:"key" json:"key,omitempty" gorm:"column:key" bson:"key,omitempty" dynamodbav:"key,omitempty" firestore:"key,omitempty"`
 }
-type Handler struct {
-	Write          func(ctx context.Context, model interface{}) error
-	ModelType      *reflect.Type
-	Validate       func(ctx context.Context, message *Message) error
-	LimitRetry     int
-	Retry          func(context.Context, []byte, map[string]string) error
-	RetryCountName string
-	Error          func(context.Context, []byte, map[string]string) error
-	Unmarshal      func([]byte, interface{}) error
-	Retries        []time.Duration
-	Goroutines     bool
-	LogError       func(context.Context, string)
-	LogInfo        func(context.Context, string)
+type Handler[T any] struct {
+	Unmarshal   func(data []byte, v any) error
+	Write       func(ctx context.Context, model *T) error
+	Validate    func(context.Context, *T) ([]ErrorMessage, error)
+	Reject      func(context.Context, *T, []ErrorMessage, []byte)
+	HandleError func(context.Context, []byte)
+	Retries     []time.Duration
+	Goroutines  bool
+	Key         string
+	LogError    func(context.Context, string)
+	LogInfo     func(context.Context, string)
 }
 
-func NewHandlerByConfig(c HandlerConfig, write func(context.Context, interface{}) error, modelType *reflect.Type, retry func(context.Context, []byte, map[string]string) error, validate func(context.Context, *Message) error, handleError func(context.Context, []byte, map[string]string) error, unmarshal func([]byte, interface{}) error, logs ...func(context.Context, string)) *Handler {
-	return NewHandlerWithRetryService(write, modelType, c.LimitRetry, retry, c.RetryCountName, validate, handleError, c.Goroutines, unmarshal, logs...)
+func NewHandlerByConfig[T any](c HandlerConfig,
+	write func(context.Context, *T) error,
+	validate func(context.Context, *T) ([]ErrorMessage, error),
+	reject func(context.Context, *T, []ErrorMessage, []byte),
+	handleError func(context.Context, []byte),
+	goroutines bool, key string, logs ...func(context.Context, string)) *Handler[T] {
+	return NewHandlerByConfigAndUnmarshal[T](c, nil, write, validate, reject, handleError, goroutines, key, logs...)
 }
-func NewHandlerWithRetryConfig(write func(context.Context, interface{}) error, modelType *reflect.Type, validate func(context.Context, *Message) error, c *RetryConfig, goroutines bool, handleError func(context.Context, []byte, map[string]string) error, unmarshal func([]byte, interface{}) error, logs ...func(context.Context, string)) *Handler {
-	if c == nil {
-		return NewHandlerWithRetries(write, modelType, validate, nil, handleError, goroutines, unmarshal, logs...)
+func NewHandlerByConfigAndUnmarshal[T any](c HandlerConfig,
+	unmarshal func(data []byte, v any) error,
+	write func(context.Context, *T) error,
+	validate func(context.Context, *T) ([]ErrorMessage, error),
+	reject func(context.Context, *T, []ErrorMessage, []byte),
+	handleError func(context.Context, []byte),
+	goroutines bool, key string, logs ...func(context.Context, string)) *Handler[T] {
+	if c.Retry == nil {
+		return NewHandlerWithKey[T](unmarshal, write, validate, reject, handleError, nil, c.Goroutines, c.Key, logs...)
+	} else {
+		retries := DurationsFromValue(c.Retry, "Retry", 20)
+		return NewHandlerWithKey[T](unmarshal, write, validate, reject, handleError, retries, c.Goroutines, c.Key, logs...)
 	}
-	retries := DurationsFromValue(*c, "Retry", 20)
-	if len(retries) == 0 {
-		return NewHandlerWithRetries(write, modelType, validate, nil, handleError, goroutines, unmarshal, logs...)
-	}
-	return NewHandlerWithRetries(write, modelType, validate, retries, handleError, goroutines, unmarshal, logs...)
 }
-func NewHandlerWithRetries(write func(context.Context, interface{}) error, modelType *reflect.Type, validate func(context.Context, *Message) error, retries []time.Duration, handleError func(context.Context, []byte, map[string]string) error, goroutines bool, unmarshal func([]byte, interface{}) error, logs ...func(context.Context, string)) *Handler {
+func NewHandlerWithKey[T any](
+	unmarshal func(data []byte, v any) error,
+	write func(context.Context, *T) error,
+	validate func(context.Context, *T) ([]ErrorMessage, error),
+	reject func(context.Context, *T, []ErrorMessage, []byte),
+	handleError func(context.Context, []byte),
+	retries []time.Duration,
+	goroutines bool, key string, logs ...func(context.Context, string)) *Handler[T] {
 	if unmarshal == nil {
 		unmarshal = json.Unmarshal
 	}
-	c := &Handler{
-		ModelType:  modelType,
-		Write:      write,
-		Validate:   validate,
-		Unmarshal:  unmarshal,
-		Goroutines: goroutines,
-		Error:      handleError,
-	}
-	if retries != nil {
-		c.Retries = retries
-	}
-	if len(logs) >= 1 {
-		c.LogError = logs[0]
-	}
-	if len(logs) >= 2 {
-		c.LogInfo = logs[1]
-	}
-	return c
-}
-func NewHandler(write func(context.Context, interface{}) error, modelType *reflect.Type, validate func(context.Context, *Message) error, goroutines bool, unmarshal func([]byte, interface{}) error, logs ...func(context.Context, string)) *Handler {
-	return NewHandlerWithRetryService(write, modelType, -1, nil, "", validate, nil, goroutines, unmarshal, logs...)
-}
-func NewHandlerWithRetryService(write func(context.Context, interface{}) error, modelType *reflect.Type, limitRetry int, retry func(context.Context, []byte, map[string]string) error, retryCountName string, validate func(context.Context, *Message) error,
-		handleError func(context.Context, []byte, map[string]string) error,
-		goroutines bool,
-		unmarshal func([]byte, interface{}) error,
-		logs ...func(context.Context, string)) *Handler {
-	if len(retryCountName) == 0 {
-		retryCountName = "retryCount"
-	}
-	if retry != nil && handleError == nil {
-		e1 := NewErrorHandler(logs...)
-		handleError = e1.HandleError
-	}
-	if unmarshal == nil {
-		unmarshal = json.Unmarshal
-	}
-	c := &Handler{
-		ModelType:      modelType,
-		Write:          write,
-		Validate:       validate,
-		LimitRetry:     limitRetry,
-		Retry:          retry,
-		RetryCountName: retryCountName,
-		Error:          handleError,
-		Unmarshal:      unmarshal,
-		Goroutines:     goroutines,
+	c := &Handler[T]{
+		Write:       write,
+		Unmarshal:   unmarshal,
+		Validate:    validate,
+		Reject:      reject,
+		HandleError: handleError,
+		Retries:     retries,
+		Goroutines:  goroutines,
+		Key:         key,
 	}
 	if len(logs) >= 1 {
 		c.LogError = logs[0]
@@ -103,155 +77,95 @@ func NewHandlerWithRetryService(write func(context.Context, interface{}) error, 
 	return c
 }
 
-func (c *Handler) Handle(ctx context.Context, data []byte, header map[string]string, err error) error {
-	if err != nil {
-		if c.LogError != nil {
-			c.LogError(ctx, "Processing message error: "+err.Error())
-		}
-		return err
-	} else if data == nil {
-		return nil
+func (c *Handler[T]) Handle(ctx context.Context, data []byte) {
+	if data == nil {
+		return
 	}
 	if c.LogInfo != nil {
-		c.LogInfo(ctx, fmt.Sprintf("Received message: %s", data))
+		key := GetString(ctx, c.Key)
+		if len(key) > 0 {
+			c.LogInfo(ctx, fmt.Sprintf("Received message with key %s : %s", key, data))
+		} else {
+			c.LogInfo(ctx, fmt.Sprintf("Received message: %s", data))
+		}
 	}
-	message := &Message{Data: data, Attributes: header}
+	var v T
+	er1 := json.Unmarshal(data, &v)
+	if er1 != nil {
+		if c.LogError != nil {
+			c.LogError(ctx, fmt.Sprintf("cannot unmarshal item: %s. Error: %s", data, er1.Error()))
+		}
+		return
+	}
 	if c.Validate != nil {
-		er2 := c.Validate(ctx, message)
-		if er2 != nil {
+		errs, err := c.Validate(ctx, &v)
+		if err != nil {
 			if c.LogError != nil {
-				if header == nil || len(header) == 0 {
-					c.LogError(ctx, fmt.Sprintf("Message is invalid: %s . Error: %s", data, er2.Error()))
-				} else {
-					c.LogError(ctx, fmt.Sprintf("Message is invalid: %s %s . Error: %s", data, header, er2.Error()))
-				}
+				c.LogError(ctx, "Error when validate data: "+err.Error())
 			}
-			return er2
+			return
 		}
-	}
-	var item interface{}
-	if message.Value != nil {
-		item = message.Value
-	}
-	if c.ModelType != nil && item == nil {
-		v := InitModel(*c.ModelType)
-		er1 := c.Unmarshal(message.Data, v)
-		if er1 != nil {
-			if c.LogError != nil {
-				c.LogError(ctx, fmt.Sprintf(`cannot unmarshal item: %s. Error: %s`, message.Data, er1.Error()))
-			}
-			return nil
+		if len(errs) > 0 {
+			c.Reject(ctx, &v, errs, data)
 		}
-		item = v
 	}
 	if c.Goroutines {
-		go c.write(ctx, data, header, item)
-		return nil
+		go c.write(ctx, data, &v)
 	} else {
-		return c.write(ctx, data, header, item)
-	}
-}
-func (c *Handler) write(ctx context.Context, data []byte, header map[string]string, item interface{}) error {
-	// ctx = context.WithValue(ctx, "message", message)
-	if c.Retry == nil && c.Retries != nil && len(c.Retries) > 0 {
-		return WriteWithRetry(ctx, c.Write, data, item, c.Retries, c.Error, c.LogError)
-	} else {
-		return Write(ctx, c.Write, data, header, item, c.Error, c.Retry, c.LimitRetry, c.RetryCountName, c.LogError, c.LogInfo)
+		c.write(ctx, data, &v)
 	}
 }
 
-func WriteWithRetry(ctx context.Context, write func(context.Context, interface{}) error, data []byte, item interface{}, retries []time.Duration, handleError func(context.Context, []byte, map[string]string) error, logs ...func(context.Context, string)) error {
-	var logError func(context.Context, string)
-	if len(logs) > 0 {
-		logError = logs[0]
-	}
-	if er1 := write(ctx, item); er1 != nil {
-		i := 0
-		err := Retry(ctx, retries, func() (err error) {
-			i = i + 1
-			er2 := write(ctx, item)
-			if er2 == nil && logError != nil {
-				logError(ctx, fmt.Sprintf("Write successfully after %d retries %s", i, data))
-			}
-			return er2
-		}, logError)
-		if err != nil {
-			if handleError != nil {
-				handleError(ctx, data, nil)
-			}
-			if logError != nil {
-				logError(ctx, fmt.Sprintf("Failed to write after %d retries: %s. Error: %s.", len(retries), data, er1.Error()))
-			}
-		}
-		return err
-	}
-	return nil
-}
-func Write(ctx context.Context, write func(context.Context, interface{}) error, data []byte, attrs map[string]string, item interface{}, handleError func(context.Context, []byte, map[string]string) error, retry func(context.Context, []byte, map[string]string) error, limitRetry int, retryCountName string, logs ...func(context.Context, string)) error {
-	var logError func(context.Context, string)
-	var logInfo func(context.Context, string)
-	if len(logs) > 0 {
-		logError = logs[0]
-	}
-	if len(logs) > 1 {
-		logInfo = logs[1]
-	}
-	er3 := write(ctx, item)
+func (c *Handler[T]) write(ctx context.Context, data []byte, item *T) error {
+	er3 := c.Write(ctx, item)
 	if er3 == nil {
 		return er3
 	}
-	if logError != nil {
-		logError(ctx, fmt.Sprintf("Fail to write %s . Error: %s", data, er3.Error()))
-	}
-
-	if retry == nil {
-		if handleError != nil {
-			handleError(ctx, data, attrs)
+	if c.Retries != nil && len(c.Retries) > 0 {
+		i := 0
+		err := Retry(ctx, c.Retries, func() (err error) {
+			i = i + 1
+			er2 := c.Write(ctx, item)
+			if er2 == nil {
+				if c.LogError != nil {
+					c.LogError(ctx, fmt.Sprintf("Write successfully after %d retries %s", i, data))
+				}
+			}
+			return er2
+		}, c.LogError)
+		if err != nil && c.LogError != nil {
+			c.LogError(ctx, fmt.Sprintf("Failed to write after %d retries: %s. Error: %s.", len(c.Retries), data, err.Error()))
+			if c.HandleError != nil {
+				c.HandleError(ctx, data)
+			}
+		}
+		return nil
+	} else {
+		if c.LogError != nil {
+			c.LogError(ctx, fmt.Sprintf("Failed to write %s . Error: %s", data, er3.Error()))
+		}
+		if c.HandleError != nil {
+			c.HandleError(ctx, data)
 		}
 		return er3
 	}
-	retryCount := 0
-	if attrs == nil {
-		attrs = make(map[string]string)
-	} else {
-		var er4 error
-		retryCount, er4 = strconv.Atoi(attrs[retryCountName])
-		if er4 != nil {
-			retryCount = 0
-		}
-	}
-	retryCount++
-	if retryCount > limitRetry {
-		if logInfo != nil {
-			if attrs == nil || len(attrs) == 0 {
-				logInfo(ctx, fmt.Sprintf("Retry: %d . Retry limitation: %d . Message: %s.", retryCount, limitRetry, data))
-			} else {
-				logInfo(ctx, fmt.Sprintf("Retry: %d . Retry limitation: %d . Message: %s %s.", retryCount, limitRetry, data, attrs))
-			}
+}
 
+// Retry Copy this code from https://stackoverflow.com/questions/47606761/repeat-code-if-an-error-occured
+func Retry(ctx context.Context, sleeps []time.Duration, f func() error, log func(context.Context, string)) (err error) {
+	attempts := len(sleeps)
+	for i := 0; ; i++ {
+		time.Sleep(sleeps[i])
+		err = f()
+		if err == nil {
+			return
 		}
-		if handleError != nil {
-			handleError(ctx, data, attrs)
+		if i >= (attempts - 1) {
+			break
 		}
-	} else {
-		if logInfo != nil {
-			if attrs == nil || len(attrs) == 0 {
-				logInfo(ctx, fmt.Sprintf("Retry: %d . Message: %s.", retryCount, data))
-			} else {
-				logInfo(ctx, fmt.Sprintf("Retry: %d . Message: %s %s.", retryCount, data, attrs))
-			}
-		}
-		attrs[retryCountName] = strconv.Itoa(retryCount)
-		er2 := retry(ctx, data, attrs)
-		if er2 != nil {
-			if logError != nil {
-				if attrs == nil || len(attrs) == 0 {
-					logError(ctx, fmt.Sprintf("Cannot retry %s . Error: %s", data, er2.Error()))
-				} else {
-					logError(ctx, fmt.Sprintf("Cannot retry %s %s. Error: %s", data, attrs, er2.Error()))
-				}
-			}
+		if log != nil {
+			log(ctx, fmt.Sprintf("Retrying %d of %d after error: %s", i+1, attempts, err.Error()))
 		}
 	}
-	return nil
+	return fmt.Errorf("after %d attempts, last error: %s", attempts, err)
 }

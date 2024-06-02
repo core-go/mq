@@ -102,25 +102,25 @@ func NewProducerWithRetryArray(c ProducerConfig, retries []time.Duration, conver
 	}
 	return p, err
 }
-func (p *Producer) Put(ctx context.Context, data []byte, attributes map[string]string) (string, error) {
+func (p *Producer) Put(ctx context.Context, data []byte, attributes map[string]string) error {
 	return p.Produce(ctx, data, attributes)
 }
-func (p *Producer) Write(ctx context.Context, data []byte, attributes map[string]string) (string, error) {
+func (p *Producer) Write(ctx context.Context, data []byte, attributes map[string]string) error {
 	return p.Produce(ctx, data, attributes)
 }
-func (p *Producer) Publish(ctx context.Context, data []byte, attributes map[string]string) (string, error) {
+func (p *Producer) Publish(ctx context.Context, data []byte, attributes map[string]string) error {
 	return p.Produce(ctx, data, attributes)
 }
-func (p *Producer) Send(ctx context.Context, data []byte, attributes map[string]string) (string, error) {
+func (p *Producer) Send(ctx context.Context, data []byte, attributes map[string]string) error {
 	return p.Produce(ctx, data, attributes)
 }
-func (p *Producer) Produce(ctx context.Context, data []byte, messageAttributes map[string]string) (string, error) {
+func (p *Producer) Produce(ctx context.Context, data []byte, messageAttributes map[string]string) error {
 	var binary = data
 	var err error
 	if p.Convert != nil {
 		binary, err = p.Convert(ctx, data)
 		if err != nil {
-			return "", err
+			return err
 		}
 	}
 	msg := kafka.Message{
@@ -137,7 +137,7 @@ func (p *Producer) Produce(ctx context.Context, data []byte, messageAttributes m
 	defer close(deliveryChan)
 	err = p.Producer.Produce(&msg, deliveryChan)
 	if err != nil {
-		return msg.String(), err
+		return err
 	}
 	p.Producer.Flush(p.Timeout)
 	e := <-deliveryChan
@@ -147,21 +147,24 @@ func (p *Producer) Produce(ctx context.Context, data []byte, messageAttributes m
 			if p.Error != nil {
 				err = p.Error(m, err)
 			}
-			return msg.String(), err
+			return err
 		}
-		return msg.String(), m.TopicPartition.Error
+		return m.TopicPartition.Error
 	case kafka.Error:
-		return "", m
+		return m
 	}
-	return msg.String(), nil
+	return nil
 }
-func (p *Producer) ProduceWithKey(ctx context.Context, data []byte, key []byte, messageAttributes map[string]string) (string, error) {
+func (p *Producer) ProduceValue(ctx context.Context, data []byte) error {
+	return p.Produce(ctx, data, nil)
+}
+func (p *Producer) ProduceWithKey(ctx context.Context, key []byte, data []byte, messageAttributes map[string]string) error {
 	var binary = data
 	var err error
 	if p.Convert != nil {
 		binary, err = p.Convert(ctx, data)
 		if err != nil {
-			return "", err
+			return err
 		}
 	}
 	msg := kafka.Message{
@@ -177,7 +180,7 @@ func (p *Producer) ProduceWithKey(ctx context.Context, data []byte, key []byte, 
 	defer close(deliveryChan)
 	err = p.Producer.Produce(&msg, deliveryChan)
 	if err != nil {
-		return msg.String(), err
+		return err
 	}
 	p.Producer.Flush(p.Timeout)
 	e := <-deliveryChan
@@ -187,11 +190,11 @@ func (p *Producer) ProduceWithKey(ctx context.Context, data []byte, key []byte, 
 			if p.Error != nil {
 				err = p.Error(m, err)
 			}
-			return msg.String(), err
+			return err
 		}
-		return msg.String(), m.TopicPartition.Error
+		return m.TopicPartition.Error
 	case kafka.Error:
-		return "", m
+		return m
 	}
-	return msg.String(), nil
+	return nil
 }

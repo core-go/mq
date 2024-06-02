@@ -10,49 +10,41 @@ import (
 
 type Writer struct {
 	Writer *kafka.Writer
-	Convert func(context.Context, []byte)([]byte, error)
 	Generate func()string
 }
 
-func NewWriter(writer *kafka.Writer, convert func(context.Context, []byte)([]byte, error), options...func()string) (*Writer, error) {
+func NewWriter(writer *kafka.Writer, options...func()string) (*Writer, error) {
 	var generate func()string
 	if len(options) > 0 {
 		generate = options[0]
 	}
-	return &Writer{Writer: writer, Convert: convert, Generate: generate}, nil
+	return &Writer{Writer: writer, Generate: generate}, nil
 }
 
-func NewWriterByConfig(c WriterConfig, convert func(context.Context, []byte)([]byte, error), options...func()string) (*Writer, error) {
+func NewWriterByConfig(c WriterConfig, options...func()string) (*Writer, error) {
 	dialer := GetDialer(c.Client.Username, c.Client.Password, scram.SHA512, &kafka.Dialer{
 		Timeout:   30 * time.Second,
 		DualStack: true,
 		TLS:       &tls.Config{},
 	})
 	writer := NewKafkaWriter(c.Topic, c.Brokers, dialer)
-	return NewWriter(writer, convert, options...)
+	return NewWriter(writer, options...)
 }
-func (p *Writer) Put(ctx context.Context, data []byte, attributes map[string]string) (string, error) {
+func (p *Writer) Put(ctx context.Context, data []byte, attributes map[string]string) error {
 	return p.Write(ctx, data, attributes)
 }
-func (p *Writer) Send(ctx context.Context, data []byte, attributes map[string]string) (string, error) {
+func (p *Writer) Send(ctx context.Context, data []byte, attributes map[string]string) error {
 	return p.Write(ctx, data, attributes)
 }
-func (p *Writer) Produce(ctx context.Context, data []byte, attributes map[string]string) (string, error) {
+func (p *Writer) Produce(ctx context.Context, data []byte, attributes map[string]string) error {
 	return p.Write(ctx, data, attributes)
 }
-func (p *Writer) Publish(ctx context.Context, data []byte, attributes map[string]string) (string, error) {
+func (p *Writer) Publish(ctx context.Context, data []byte, attributes map[string]string) error {
 	return p.Write(ctx, data, attributes)
 }
-func (p *Writer) Write(ctx context.Context, data []byte, attributes map[string]string) (string, error) {
-	var binary = data
+func (p *Writer) Write(ctx context.Context, data []byte, attributes map[string]string) error {
 	var err error
-	if p.Convert != nil {
-		binary, err = p.Convert(ctx, data)
-		if err != nil {
-			return "", err
-		}
-	}
-	msg := kafka.Message{Value: binary}
+	msg := kafka.Message{Value: data}
 	if attributes != nil {
 		msg.Headers = MapToHeader(attributes)
 	}
@@ -61,22 +53,28 @@ func (p *Writer) Write(ctx context.Context, data []byte, attributes map[string]s
 		msg.Key = []byte(id)
 
 		err = p.Writer.WriteMessages(ctx, msg)
-		return id, err
+		return err
 	} else {
 		err = p.Writer.WriteMessages(ctx, msg)
-		return "", err
+		return err
 	}
 }
-func (p *Writer) WriteWithKey(ctx context.Context, data []byte, key []byte, attributes map[string]string) (string, error) {
-	var binary = data
+func (p *Writer) WriteValue(ctx context.Context, data []byte) error {
 	var err error
-	if p.Convert != nil {
-		binary, err = p.Convert(ctx, data)
-		if err != nil {
-			return "", err
-		}
+	msg := kafka.Message{Value: data}
+	if p.Generate != nil {
+		id := p.Generate()
+		msg.Key = []byte(id)
+		err = p.Writer.WriteMessages(ctx, msg)
+		return err
+	} else {
+		err = p.Writer.WriteMessages(ctx, msg)
+		return err
 	}
-	msg := kafka.Message{Value: binary}
+}
+func (p *Writer) WriteWithKey(ctx context.Context, data []byte, key []byte, attributes map[string]string) error {
+	var err error
+	msg := kafka.Message{Value: data}
 	if attributes != nil {
 		msg.Headers = MapToHeader(attributes)
 	}
@@ -84,5 +82,5 @@ func (p *Writer) WriteWithKey(ctx context.Context, data []byte, key []byte, attr
 		msg.Key = key
 	}
 	err = p.Writer.WriteMessages(ctx, msg)
-	return "", err
+	return err
 }

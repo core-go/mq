@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"github.com/confluentinc/confluent-kafka-go/kafka"
-	"github.com/core-go/mq"
 	"log"
 	"time"
 )
@@ -13,7 +12,6 @@ type (
 	Consumer struct {
 		Consumer *kafka.Consumer
 		Topics   []string
-		Convert  func(context.Context, []byte) ([]byte, error)
 		LogError func(context.Context, string)
 		LogInfo  func(context.Context, string)
 	}
@@ -70,20 +68,12 @@ func NewConsumer(consumer *kafka.Consumer, topics []string, logs ...func(context
 	}
 	return c
 }
-func NewConsumerWithConvert(consumer *kafka.Consumer, topics []string, options ...func(context.Context, []byte) ([]byte, error)) *Consumer {
-	var convert func(context.Context, []byte) ([]byte, error)
-	if len(options) > 0 {
-		convert = options[0]
-	}
-	return &Consumer{Consumer: consumer, Topics: topics, Convert: convert}
-}
-func NewConsumerByConfigAndRetries(c ConsumerConfig, convert func(context.Context, []byte) ([]byte, error), retries ...time.Duration) (*Consumer, error) {
+func NewConsumerByConfigAndRetries(c ConsumerConfig, retries ...time.Duration) (*Consumer, error) {
 	if len(retries) == 0 {
 		cs, err := NewConsumerByConfig(c)
 		if err != nil {
 			return cs, err
 		}
-		cs.Convert = convert
 		return cs, nil
 	} else {
 		return NewConsumerByConfigAndRetryArray(c, retries)
@@ -109,24 +99,19 @@ func NewConsumerByConfigAndRetryArray(c ConsumerConfig, retries []time.Duration,
 	if err != nil {
 		log.Println(fmt.Sprintf("Fail in creating new Consumer after %d retries", i))
 	}
-	var convert func(context.Context, []byte) ([]byte, error)
-	if len(options) > 0 {
-		convert = options[0]
-	}
 	return &Consumer{
 		Consumer: consumer,
 		Topics:   []string{c.Topic},
-		Convert:  convert,
 	}, nil
 }
 
-func (c *Consumer) Consume(ctx context.Context, handle func(context.Context, *mq.Message, error) error) {
+func (c *Consumer) Consume(ctx context.Context, handle func(context.Context, []byte, map[string]string)) {
 	defer c.Consumer.Close()
 
 	err := c.Consumer.SubscribeTopics(c.Topics, nil)
 	if err != nil {
 		if c.LogError != nil {
-			c.LogError(ctx, fmt.Sprintf("Subscribe Topic err: %v", err))
+			c.LogError(ctx, fmt.Sprintf("Consume Topic err: %v", err))
 		}
 		return
 	}
@@ -139,35 +124,79 @@ func (c *Consumer) Consume(ctx context.Context, handle func(context.Context, *mq
 				c.LogInfo(ctx, fmt.Sprintf("Message on %s: %s", e.TopicPartition, string(e.Value)))
 			}
 			h := HeaderToMap(e.Headers)
-			message := &mq.Message{
-				Id:         string(e.Key),
-				Data:       e.Value,
-				Attributes: h,
-				Timestamp:  &e.Timestamp,
-				Raw:        e,
-			}
-			if c.Convert == nil {
-				handle(ctx, message, nil)
-			} else {
-				data, err := c.Convert(ctx, e.Value)
-				if err != nil {
-					handle(ctx, message, err)
-				} else {
-					message.Data = data
-					handle(ctx, message, err)
-				}
-
-			}
+			handle(ctx, e.Value, h)
 		case kafka.PartitionEOF:
 			if c.LogInfo != nil {
 				c.LogInfo(ctx, fmt.Sprintf("Reached %v", e))
-
 			}
 		case kafka.Error:
 			if c.LogError != nil {
 				c.LogError(ctx, fmt.Sprintf("Error: %v", e))
 			}
-			handle(ctx, nil, e)
+			run = false
+		default:
+		}
+	}
+}
+func (c *Consumer) ConsumeValue(ctx context.Context, handle func(context.Context, []byte)) {
+	defer c.Consumer.Close()
+
+	err := c.Consumer.SubscribeTopics(c.Topics, nil)
+	if err != nil {
+		if c.LogError != nil {
+			c.LogError(ctx, fmt.Sprintf("Consume Topic err: %v", err))
+		}
+		return
+	}
+	run := true
+	for run == true {
+		ev := c.Consumer.Poll(0)
+		switch e := ev.(type) {
+		case *kafka.Message:
+			if c.LogInfo != nil {
+				c.LogInfo(ctx, fmt.Sprintf("Message on %s: %s", e.TopicPartition, string(e.Value)))
+			}
+			handle(ctx, e.Value)
+		case kafka.PartitionEOF:
+			if c.LogInfo != nil {
+				c.LogInfo(ctx, fmt.Sprintf("Reached %v", e))
+			}
+		case kafka.Error:
+			if c.LogError != nil {
+				c.LogError(ctx, fmt.Sprintf("Error: %v", e))
+			}
+			run = false
+		default:
+		}
+	}
+}
+func (c *Consumer) ConsumeMessage(ctx context.Context, handle func(context.Context, *kafka.Message)) {
+	defer c.Consumer.Close()
+
+	err := c.Consumer.SubscribeTopics(c.Topics, nil)
+	if err != nil {
+		if c.LogError != nil {
+			c.LogError(ctx, fmt.Sprintf("Consume Topic err: %v", err))
+		}
+		return
+	}
+	run := true
+	for run == true {
+		ev := c.Consumer.Poll(0)
+		switch e := ev.(type) {
+		case *kafka.Message:
+			if c.LogInfo != nil {
+				c.LogInfo(ctx, fmt.Sprintf("Message on %s: %s", e.TopicPartition, string(e.Value)))
+			}
+			handle(ctx, e)
+		case kafka.PartitionEOF:
+			if c.LogInfo != nil {
+				c.LogInfo(ctx, fmt.Sprintf("Reached %v", e))
+			}
+		case kafka.Error:
+			if c.LogError != nil {
+				c.LogError(ctx, fmt.Sprintf("Error: %v", e))
+			}
 			run = false
 		default:
 		}

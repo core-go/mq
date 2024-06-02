@@ -2,6 +2,7 @@ package mq
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strconv"
 	"sync"
@@ -10,86 +11,162 @@ import (
 
 const TimeFormat = "15:04:05.000"
 
-type BatchWorker interface {
-	Handle(ctx context.Context, message *Message)
-	Run(ctx context.Context)
+type BatchConfig struct {
+	RetryCountName string `yaml:"retry_count_name" mapstructure:"retry_count_name" json:"retryCountName,omitempty" gorm:"column:retrycountname" bson:"retryCountName,omitempty" dynamodbav:"retryCountName,omitempty" firestore:"retryCountName,omitempty"`
+	LimitRetry     int    `yaml:"limit_retry" mapstructure:"limit_retry" json:"limitRetry,omitempty" gorm:"column:limitretry" bson:"limitRetry,omitempty" dynamodbav:"limitRetry,omitempty" firestore:"limitRetry,omitempty"`
+	Goroutines     bool   `yaml:"goroutines" mapstructure:"goroutines" json:"goroutines,omitempty" gorm:"column:goroutines" bson:"goroutines,omitempty" dynamodbav:"goroutines,omitempty" firestore:"goroutines,omitempty"`
+	Key            string `yaml:"key" mapstructure:"key" json:"key,omitempty" gorm:"column:key" bson:"key,omitempty" dynamodbav:"key,omitempty" firestore:"key,omitempty"`
+	Timeout        int64  `yaml:"timeout" mapstructure:"timeout" json:"timeout,omitempty" gorm:"column:timeout" bson:"timeout,omitempty" dynamodbav:"timeout,omitempty" firestore:"timeout,omitempty"`
+	BatchSize      int    `yaml:"batch_size" mapstructure:"batch_size" json:"batchSize,omitempty" gorm:"column:batchsize" bson:"batchSize,omitempty" dynamodbav:"batchSize,omitempty" firestore:"batchSize,omitempty"`
 }
 
-type BatchWorkerConfig struct {
-	BatchSize  int   `mapstructure:"batch_size" json:"batchSize,omitempty" gorm:"column:batchsize" bson:"batchSize,omitempty" dynamodbav:"batchSize,omitempty" firestore:"batchSize,omitempty"`
-	Timeout    int64 `mapstructure:"timeout" json:"timeout,omitempty" gorm:"column:timeout" bson:"timeout,omitempty" dynamodbav:"timeout,omitempty" firestore:"timeout,omitempty"`
-	LimitRetry int   `mapstructure:"limit_retry" json:"limitRetry,omitempty" gorm:"column:limitretry" bson:"limitRetry,omitempty" dynamodbav:"limitRetry,omitempty" firestore:"limitRetry,omitempty"`
-	Goroutines bool  `mapstructure:"goroutines" json:"goroutines,omitempty" gorm:"column:goroutines" bson:"goroutines,omitempty" dynamodbav:"goroutines,omitempty" firestore:"goroutines,omitempty"`
-}
-
-type DefaultBatchWorker struct {
+type BatchWorker[T any] struct {
 	batchSize          int
 	timeout            int64
-	limitRetry         int
-	handle             func(ctx context.Context, data []*Message) ([]*Message, error)
+	Unmarshal          func(data []byte, v any) error
+	handle             func(ctx context.Context, data []Message[T]) ([]Message[T], error)
+	Validate           func(context.Context, *T) ([]ErrorMessage, error)
+	Reject             func(context.Context, *T, []ErrorMessage, []byte, map[string]string)
+	HandleError        func(context.Context, []byte, map[string]string)
 	Retry              func(context.Context, []byte, map[string]string) error
+	LimitRetry         int
 	RetryCountName     string
-	Error              func(context.Context, []byte, map[string]string) error
 	Goroutine          bool
-	messages           []*Message
+	messages           []Message[T]
 	latestExecutedTime time.Time
 	mux                sync.Mutex
+	Key                string
 	LogError           func(context.Context, string)
 	LogInfo            func(context.Context, string)
+	LogDebug           func(context.Context, string)
 }
 
-func NewBatchWorkerByConfig(batchConfig BatchWorkerConfig, handle func(context.Context, []*Message) ([]*Message, error), retry func(context.Context, []byte, map[string]string) error, retryCountName string, errorHandler func(context.Context, []byte, map[string]string) error, logs ...func(context.Context, string)) *DefaultBatchWorker {
-	return NewBatchWorker(batchConfig.BatchSize, batchConfig.Timeout, batchConfig.LimitRetry, handle, retry, retryCountName, errorHandler, batchConfig.Goroutines, logs...)
+func NewBatchWorkerByConfig[T any](
+	c BatchConfig,
+	handle func(context.Context, []Message[T]) ([]Message[T], error),
+	validate func(context.Context, *T) ([]ErrorMessage, error),
+	reject func(context.Context, *T, []ErrorMessage, []byte, map[string]string),
+	handleError func(context.Context, []byte, map[string]string),
+	retry func(context.Context, []byte, map[string]string) error,
+	logs ...func(context.Context, string)) *BatchWorker[T] {
+	return NewBatchWorker[T](c.BatchSize, c.Timeout, nil, handle, validate, reject, handleError, retry, c.LimitRetry, c.RetryCountName, c.Goroutines, c.Key, logs...)
 }
-
-func NewDefaultBatchWorker(batchConfig BatchWorkerConfig, handle func(context.Context, []*Message) ([]*Message, error), retry func(context.Context, []byte, map[string]string) error, logs ...func(context.Context, string)) *DefaultBatchWorker {
-	return NewBatchWorker(batchConfig.BatchSize, batchConfig.Timeout, batchConfig.LimitRetry, handle, retry, "", nil, batchConfig.Goroutines, logs...)
+func NewBatchWorkerByConfigAndUnmarshal[T any](
+	c BatchConfig,
+	unmarshal func(data []byte, v any) error,
+	handle func(context.Context, []Message[T]) ([]Message[T], error),
+	validate func(context.Context, *T) ([]ErrorMessage, error),
+	reject func(context.Context, *T, []ErrorMessage, []byte, map[string]string),
+	handleError func(context.Context, []byte, map[string]string),
+	retry func(context.Context, []byte, map[string]string) error,
+	logs ...func(context.Context, string)) *BatchWorker[T] {
+	return NewBatchWorker[T](c.BatchSize, c.Timeout, unmarshal, handle, validate, reject, handleError, retry, c.LimitRetry, c.RetryCountName, c.Goroutines, c.Key, logs...)
 }
-
-func NewBatchWorker(batchSize int, timeout int64, limitRetry int, handle func(context.Context, []*Message) ([]*Message, error), retry func(context.Context, []byte, map[string]string) error, retryCountName string, handleError func(context.Context, []byte, map[string]string) error, goroutine bool, logs ...func(context.Context, string)) *DefaultBatchWorker {
+func NewBatchWorker[T any](
+	batchSize int, timeout int64,
+	unmarshal func(data []byte, v any) error,
+	handle func(context.Context, []Message[T]) ([]Message[T], error),
+	validate func(context.Context, *T) ([]ErrorMessage, error),
+	reject func(context.Context, *T, []ErrorMessage, []byte, map[string]string),
+	handleError func(context.Context, []byte, map[string]string),
+	retry func(context.Context, []byte, map[string]string) error,
+	limitRetry int,
+	retryCountName string,
+	goroutine bool,
+	key string,
+	logs ...func(context.Context, string)) *BatchWorker[T] {
 	if len(retryCountName) == 0 {
 		retryCountName = "retryCount"
 	}
-	if handleError == nil {
-		e1 := NewErrorHandler(logs...)
-		handleError = e1.HandleError
+	if unmarshal == nil {
+		unmarshal = json.Unmarshal
 	}
-	w := &DefaultBatchWorker{
+	w := &BatchWorker[T]{
 		batchSize:      batchSize,
 		timeout:        timeout,
-		limitRetry:     limitRetry,
+		Unmarshal:      unmarshal,
 		handle:         handle,
+		Validate:       validate,
+		Reject:         reject,
+		HandleError:    handleError,
 		Retry:          retry,
+		LimitRetry:     limitRetry,
 		RetryCountName: retryCountName,
-		Error:          handleError,
 		Goroutine:      goroutine,
+		Key:            key,
 	}
-	if len(logs) >= 1 {
+	if len(logs) > 0 {
 		w.LogError = logs[0]
 	}
-	if len(logs) >= 2 {
+	if len(logs) > 1 {
 		w.LogInfo = logs[1]
+	}
+	if len(logs) > 2 {
+		w.LogInfo = logs[2]
 	}
 	return w
 }
 
-func (w *DefaultBatchWorker) Handle(ctx context.Context, message *Message) {
+func (w *BatchWorker[T]) Handle(ctx context.Context, data []byte, attrs map[string]string) {
+	if data == nil {
+		return
+	}
+	if w.LogInfo != nil {
+		key := GetString(ctx, w.Key)
+		if len(key) > 0 {
+			w.LogInfo(ctx, fmt.Sprintf("Received message with key %s : %s", key, GetLog(data, attrs)))
+		} else {
+			w.LogInfo(ctx, fmt.Sprintf("Received message: %s", GetLog(data, attrs)))
+		}
+	}
+	var v T
+	er1 := json.Unmarshal(data, &v)
+	if er1 != nil {
+		if w.LogError != nil {
+			w.LogError(ctx, fmt.Sprintf("cannot unmarshal item: %s . Error: %s", GetLog(data, attrs), er1.Error()))
+		}
+		return
+	}
+	if w.Validate != nil {
+		errs, err := w.Validate(ctx, &v)
+		if err != nil {
+			if w.LogError != nil {
+				w.LogError(ctx, "Error when validate data: "+err.Error())
+			}
+			return
+		}
+		if len(errs) > 0 {
+			w.Reject(ctx, &v, errs, data, attrs)
+			return
+		}
+	}
 	w.mux.Lock()
-	if message != nil {
-		w.messages = append(w.messages, message)
+	msg := Message[T]{Data: data, Attributes: attrs, Value: v}
+	w.messages = append(w.messages, msg)
+	if w.ready(ctx) {
+		w.execute(ctx)
+	}
+	w.mux.Unlock()
+}
+func (w *BatchWorker[T]) CallByTimer(ctx context.Context) {
+	w.mux.Lock()
+	if w.LogDebug != nil {
+		w.LogDebug(ctx, "Call by timer")
 	}
 	if w.ready(ctx) {
 		w.execute(ctx)
 	}
 	w.mux.Unlock()
 }
-
-func (w *DefaultBatchWorker) ready(ctx context.Context) bool {
+func (w *BatchWorker[T]) ready(ctx context.Context) bool {
 	isReady := false
 	now := time.Now()
 	batchSize := len(w.messages)
 	t := w.latestExecutedTime.Add(time.Duration(w.timeout) * time.Millisecond)
 	if batchSize > 0 && (batchSize >= w.batchSize || t.Sub(now) < 0) {
+		if w.LogDebug != nil && batchSize >= w.batchSize {
+			w.LogDebug(ctx, fmt.Sprintf("Call by batch size %d %d", w.batchSize, batchSize))
+		}
 		isReady = true
 	}
 	if isReady && w.LogInfo != nil {
@@ -98,7 +175,7 @@ func (w *DefaultBatchWorker) ready(ctx context.Context) bool {
 	return isReady
 }
 
-func (w *DefaultBatchWorker) execute(ctx context.Context) {
+func (w *BatchWorker[T]) execute(ctx context.Context) {
 	lenMessages := len(w.messages)
 	if lenMessages == 0 {
 		w.reset(ctx)
@@ -110,13 +187,12 @@ func (w *DefaultBatchWorker) execute(ctx context.Context) {
 	if err != nil && w.LogError != nil {
 		w.LogError(ctx, "Error of batch handling: "+err.Error())
 	}
-	if errList != nil && len(errList) > 0 {
+	if len(errList) > 0 {
 		if w.Retry == nil {
 			if w.LogError != nil {
 				l := len(errList)
 				for i := 0; i < l; i++ {
-					x := CreateLog(errList[i].Data, errList[i].Attributes, errList[i].Id, errList[i].Timestamp)
-					w.LogError(ctx, fmt.Sprintf("Error message: %s.", x))
+					w.LogError(ctx, fmt.Sprintf("Error message: %s.", GetLog(errList[i].Data, errList[i].Attributes)))
 				}
 			}
 		} else {
@@ -133,24 +209,21 @@ func (w *DefaultBatchWorker) execute(ctx context.Context) {
 					}
 				}
 				retryCount++
-				if retryCount > w.limitRetry {
+				if retryCount > w.LimitRetry {
 					if w.LogInfo != nil {
-						x := CreateLog(errList[i].Data, errList[i].Attributes, errList[i].Id, errList[i].Timestamp)
-						w.LogInfo(ctx, fmt.Sprintf("Retry: %d . Retry limitation: %d . Message: %s.", retryCount, w.limitRetry, x))
+						w.LogInfo(ctx, fmt.Sprintf("Retry: %d . Retry limitation: %d . Message: %s.", retryCount-1, w.LimitRetry, GetLog(errList[i].Data, errList[i].Attributes)))
 					}
-					if w.Error != nil {
-						w.Error(ctx, errList[i].Data, errList[i].Attributes)
+					if w.HandleError != nil {
+						w.HandleError(ctx, errList[i].Data, errList[i].Attributes)
 					}
 					continue
 				} else if w.LogInfo != nil {
-					x := CreateLog(errList[i].Data, errList[i].Attributes, errList[i].Id, errList[i].Timestamp)
-					w.LogInfo(ctx, fmt.Sprintf("Retry: %d . Message: %s.", retryCount, x))
+					w.LogInfo(ctx, fmt.Sprintf("Retry: %d . Message: %s", retryCount-1, GetLog(errList[i].Data, errList[i].Attributes)))
 				}
 				errList[i].Attributes[w.RetryCountName] = strconv.Itoa(retryCount)
 				er3 := w.Retry(ctx, errList[i].Data, errList[i].Attributes)
 				if er3 != nil && w.LogError != nil {
-					x := CreateLog(errList[i].Data, errList[i].Attributes, errList[i].Id, errList[i].Timestamp)
-					w.LogError(ctx, fmt.Sprintf("Cannot retry %s . Error: %s", x, er3.Error()))
+					w.LogError(ctx, fmt.Sprintf("Cannot retry %s . Error: %s", GetLog(errList[i].Data, errList[i].Attributes), er3.Error()))
 				}
 			}
 		}
@@ -158,19 +231,19 @@ func (w *DefaultBatchWorker) execute(ctx context.Context) {
 	w.reset(ctx)
 }
 
-func (w *DefaultBatchWorker) reset(ctx context.Context) {
+func (w *BatchWorker[T]) reset(ctx context.Context) {
 	w.messages = w.messages[:0]
 	w.latestExecutedTime = time.Now()
 }
 
-func (w *DefaultBatchWorker) Run(ctx context.Context) {
+func (w *BatchWorker[T]) Run(ctx context.Context) {
 	w.reset(ctx)
 	ticker := time.NewTicker(time.Duration(w.timeout) * time.Millisecond)
 	go func() {
 		for {
 			select {
 			case <-ticker.C:
-				w.Handle(ctx, nil)
+				w.CallByTimer(ctx)
 			}
 		}
 	}()

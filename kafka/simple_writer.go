@@ -8,51 +8,42 @@ import (
 	"time"
 )
 
-type SimpleWriter struct {
+type TopicWriter struct {
 	Writer   *kafka.Writer
-	Convert func(context.Context, []byte)([]byte, error)
 	Generate func()string
 }
 
-func NewSimpleWriter(writer *kafka.Writer, convert func(context.Context, []byte)([]byte, error), options...func()string) (*SimpleWriter, error) {
+func NewTopicWriter(writer *kafka.Writer, options...func()string) (*TopicWriter, error) {
 	var generate func()string
 	if len(options) > 0 {
 		generate = options[0]
 	}
-	return &SimpleWriter{Writer: writer, Convert: convert, Generate: generate}, nil
+	return &TopicWriter{Writer: writer, Generate: generate}, nil
 }
 
-func NewSimpleWriterByConfig(c WriterConfig, convert func(context.Context, []byte)([]byte, error), options...func()string) (*SimpleWriter, error) {
+func NewTopicWriterByConfig(c WriterConfig, options...func()string) (*TopicWriter, error) {
 	dialer := GetDialer(c.Client.Username, c.Client.Password, scram.SHA512, &kafka.Dialer{
 		Timeout:   30 * time.Second,
 		DualStack: true,
 		TLS:       &tls.Config{},
 	})
 	writer := NewKafkaWriter(c.Topic, c.Brokers, dialer)
-	return NewSimpleWriter(writer, convert, options...)
+	return NewTopicWriter(writer, options...)
 }
-func (p *SimpleWriter) Publish(ctx context.Context, topic string, data []byte, attributes map[string]string) (string, error) {
+func (p *TopicWriter) Publish(ctx context.Context, topic string, data []byte, attributes map[string]string) error {
 	return p.Write(ctx, topic, data, attributes)
 }
-func (p *SimpleWriter) Send(ctx context.Context, topic string, data []byte, attributes map[string]string) (string, error) {
+func (p *TopicWriter) Send(ctx context.Context, topic string, data []byte, attributes map[string]string) error {
 	return p.Write(ctx, topic, data, attributes)
 }
-func (p *SimpleWriter) Put(ctx context.Context, topic string, data []byte, attributes map[string]string) (string, error) {
+func (p *TopicWriter) Put(ctx context.Context, topic string, data []byte, attributes map[string]string) error {
 	return p.Write(ctx, topic, data, attributes)
 }
-func (p *SimpleWriter) Produce(ctx context.Context, topic string, data []byte, attributes map[string]string) (string, error) {
+func (p *TopicWriter) Produce(ctx context.Context, topic string, data []byte, attributes map[string]string) error {
 	return p.Write(ctx, topic, data, attributes)
 }
-func (p *SimpleWriter) Write(ctx context.Context, topic string, data []byte, attributes map[string]string) (string, error) {
-	var binary = data
-	var err error
-	if p.Convert != nil {
-		binary, err = p.Convert(ctx, binary)
-		if err != nil {
-			return "", err
-		}
-	}
-	msg := kafka.Message{Value: binary}
+func (p *TopicWriter) Write(ctx context.Context, topic string, data []byte, attributes map[string]string) error {
+	msg := kafka.Message{Value: data}
 	if attributes != nil {
 		msg.Headers = MapToHeader(attributes)
 	}
@@ -61,22 +52,19 @@ func (p *SimpleWriter) Write(ctx context.Context, topic string, data []byte, att
 		msg.Key = []byte(id)
 		p.Writer.Topic = topic
 		err := p.Writer.WriteMessages(ctx, msg)
-		return id, err
+		return err
 	} else {
 		p.Writer.Topic = topic
 		err := p.Writer.WriteMessages(ctx, msg)
-		return "", err
+		return err
 	}
 }
-func (p *SimpleWriter) WriteWithKey(ctx context.Context, topic string, data []byte, key []byte, attributes map[string]string) (string, error) {
+func (p *TopicWriter) WriteValue(ctx context.Context, topic string, data []byte) error {
+	return p.Write(ctx, topic, data, nil)
+}
+func (p *TopicWriter) WriteWithKey(ctx context.Context, topic string, data []byte, key []byte, attributes map[string]string) (string, error) {
 	var binary = data
 	var err error
-	if p.Convert != nil {
-		binary, err = p.Convert(ctx, binary)
-		if err != nil {
-			return "", err
-		}
-	}
 	msg := kafka.Message{Value: binary}
 	if attributes != nil {
 		msg.Headers = MapToHeader(attributes)
@@ -84,6 +72,7 @@ func (p *SimpleWriter) WriteWithKey(ctx context.Context, topic string, data []by
 	if key != nil {
 		msg.Key = key
 	}
+	p.Writer.Topic = topic
 	err = p.Writer.WriteMessages(ctx, msg)
 	return "", err
 }
