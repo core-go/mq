@@ -11,22 +11,22 @@ import (
 var CheckTopicPermission = CheckPermission
 
 type Publisher struct {
-	Client *pubsub.Client
-	Topic  *pubsub.Topic
-	Convert func(context.Context, []byte)([]byte, error)
+	Client  *pubsub.Client
+	Topic   *pubsub.Topic
+	Convert func(context.Context, []byte) ([]byte, error)
 }
 
-func NewPublisher(ctx context.Context, client *pubsub.Client, topicId string, c *TopicConfig, options...func(context.Context, []byte)([]byte, error)) *Publisher {
+func NewPublisher(ctx context.Context, client *pubsub.Client, topicId string, c *TopicConfig, options ...func(context.Context, []byte) ([]byte, error)) *Publisher {
 	topic := client.Topic(topicId)
 	CheckTopicPermission(ctx, topic.IAM(), "pubsub.topics.publish")
-	var convert func(context.Context, []byte)([]byte, error)
+	var convert func(context.Context, []byte) ([]byte, error)
 	if len(options) > 0 {
 		convert = options[0]
 	}
 	return &Publisher{Client: client, Topic: ConfigureTopic(topic, c), Convert: convert}
 }
 
-func NewPublisherByConfig(ctx context.Context, c PublisherConfig, options...func(context.Context, []byte)([]byte, error)) (*Publisher, error) {
+func NewPublisherByConfig(ctx context.Context, c PublisherConfig, options ...func(context.Context, []byte) ([]byte, error)) (*Publisher, error) {
 	if c.Retry.Retry1 <= 0 {
 		client, err := NewPubSubClient(ctx, []byte(c.Client.Credentials), c.Client.ProjectId)
 		if err != nil {
@@ -60,30 +60,37 @@ func ConfigureTopic(topic *pubsub.Topic, c *TopicConfig) *pubsub.Topic {
 	}
 	return topic
 }
-func (p *Publisher) Put(ctx context.Context, data []byte, attributes map[string]string) (string, error) {
+func (p *Publisher) Put(ctx context.Context, data []byte, attributes map[string]string) error {
 	return p.Publish(ctx, data, attributes)
 }
-func (p *Publisher) Send(ctx context.Context, data []byte, attributes map[string]string) (string, error) {
+func (p *Publisher) Send(ctx context.Context, data []byte, attributes map[string]string) error {
 	return p.Publish(ctx, data, attributes)
 }
-func (p *Publisher) Produce(ctx context.Context, data []byte, attributes map[string]string) (string, error) {
+func (p *Publisher) Produce(ctx context.Context, data []byte, attributes map[string]string) error {
 	return p.Publish(ctx, data, attributes)
 }
-func (p *Publisher) Write(ctx context.Context, data []byte, attributes map[string]string) (string, error) {
+func (p *Publisher) Write(ctx context.Context, data []byte, attributes map[string]string) error {
 	return p.Publish(ctx, data, attributes)
 }
-func (p *Publisher) Publish(ctx context.Context, data []byte, attributes map[string]string) (string, error) {
-	var binary = data
-	var err error
-	if p.Convert != nil {
-		binary, err = p.Convert(ctx, data)
-		if err != nil {
-			return "", err
-		}
-	}
+func (p *Publisher) PublishData(ctx context.Context, data []byte) error {
 	msg := &pubsub.Message{
-		Data: binary,
+		Data: data,
 	}
+	publishResult := p.Topic.Publish(ctx, msg)
+	_, err := publishResult.Get(ctx)
+	return err
+}
+func (p *Publisher) Publish(ctx context.Context, data []byte, attributes map[string]string) error {
+	msg := &pubsub.Message{Data: data}
+	if attributes != nil {
+		msg.Attributes = attributes
+	}
+	publishResult := p.Topic.Publish(ctx, msg)
+	_, err := publishResult.Get(ctx)
+	return err
+}
+func (p *Publisher) PublishMessage(ctx context.Context, data []byte, attributes map[string]string) (string, error) {
+	msg := &pubsub.Message{Data: data}
 	if attributes != nil {
 		msg.Attributes = attributes
 	}
