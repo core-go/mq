@@ -29,9 +29,10 @@ func (h *BatchHandler[T]) Handle(ctx context.Context, data []Message[T]) ([]Mess
 		if err != nil {
 			return failMessages, err
 		}
-		if len(failIndices) > 0 {
-			for _, failIndex := range failIndices {
-				failMessages = append(failMessages, data[failIndex])
+		sl := len(failIndices)
+		if sl > 0 {
+			for j := 0; j < sl; j++ {
+				failMessages = append(failMessages, data[failIndices[j]])
 			}
 		}
 	}

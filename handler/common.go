@@ -24,13 +24,12 @@ type ErrorHandler[T any] struct {
 	LogError func(context.Context, string)
 }
 
-func (w *ErrorHandler[T]) HandleError(ctx context.Context, res T, err []ErrorMessage, data []byte) error {
+func (w *ErrorHandler[T]) Reject(ctx context.Context, res T, err []ErrorMessage, data []byte) {
 	if w.LogError != nil && data != nil {
 		w.LogError(ctx, fmt.Sprintf("Message is invalid %s Error: %+v", data, err))
 	}
-	return nil
 }
-func (w *ErrorHandler[T]) HandleErrorWithMap(ctx context.Context, res T, err []ErrorMessage, data []byte, attrs map[string]string) error {
+func (w *ErrorHandler[T]) RejectWithMap(ctx context.Context, res T, err []ErrorMessage, data []byte, attrs map[string]string) {
 	if w.LogError != nil && data != nil {
 		if len(attrs) > 0 {
 			w.LogError(ctx, fmt.Sprintf("Message is invalid %s Attributes: %+v Error: %+v", data, attrs, err))
@@ -38,9 +37,21 @@ func (w *ErrorHandler[T]) HandleErrorWithMap(ctx context.Context, res T, err []E
 			w.LogError(ctx, fmt.Sprintf("Message is invalid %s Error: %+v", data, err))
 		}
 	}
-	return nil
 }
-
+func (w *ErrorHandler[T]) HandleError(ctx context.Context, data []byte) {
+	if w.LogError != nil && data != nil {
+		w.LogError(ctx, fmt.Sprintf("Message is invalid %s", data))
+	}
+}
+func (w *ErrorHandler[T]) HandleErrorWithMap(ctx context.Context, data []byte, attrs map[string]string) {
+	if w.LogError != nil && data != nil {
+		if len(attrs) > 0 {
+			w.LogError(ctx, fmt.Sprintf("Message is invalid %s Attributes: %+v", data, attrs))
+		} else {
+			w.LogError(ctx, fmt.Sprintf("Message is invalid %s", data))
+		}
+	}
+}
 func GetString(ctx context.Context, key string) string {
 	if len(key) > 0 {
 		u := ctx.Value(key)

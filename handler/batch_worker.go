@@ -14,13 +14,14 @@ const TimeFormat = "15:04:05.000"
 type BatchWorker[T any] struct {
 	batchSize          int
 	timeout            int64
-	limitRetry         int
+	Unmarshal          func(data []byte, v any) error
 	handle             func(ctx context.Context, data []Message[T]) ([]Message[T], error)
 	Validate           func(context.Context, *T) ([]ErrorMessage, error)
-	HandleError        func(context.Context, *T, []ErrorMessage, []byte, map[string]string)
+	Reject             func(context.Context, *T, []ErrorMessage, []byte, map[string]string)
+	HandleError        func(context.Context, []byte, map[string]string) error
 	Retry              func(context.Context, []byte, map[string]string) error
+	limitRetry         int
 	RetryCountName     string
-	Error              func(context.Context, []byte, map[string]string) error
 	Goroutine          bool
 	messages           []Message[T]
 	latestExecutedTime time.Time
@@ -30,19 +31,34 @@ type BatchWorker[T any] struct {
 	LogInfo            func(context.Context, string)
 }
 
-func NewBatchWorker[T any](batchSize int, timeout int64, limitRetry int, handle func(context.Context, []Message[T]) ([]Message[T], error), retry func(context.Context, []byte, map[string]string) error, retryCountName string, handleError func(context.Context, []byte, map[string]string) error, goroutine bool, logs ...func(context.Context, string)) *BatchWorker[T] {
+func NewBatchWorker[T any](
+	batchSize int, timeout int64,
+	unmarshal func(data []byte, v any) error,
+	validate func(context.Context, *T) ([]ErrorMessage, error),
+	reject func(context.Context, *T, []ErrorMessage, []byte, map[string]string),
+	handle func(context.Context, []Message[T]) ([]Message[T], error),
+	retry func(context.Context, []byte, map[string]string) error,
+	limitRetry int,
+	retryCountName string,
+	handleError func(context.Context, []byte, map[string]string) error,
+	goroutine bool, logs ...func(context.Context, string)) *BatchWorker[T] {
 	if len(retryCountName) == 0 {
 		retryCountName = "retryCount"
 	}
-
+	if unmarshal == nil {
+		unmarshal = json.Unmarshal
+	}
 	w := &BatchWorker[T]{
 		batchSize:      batchSize,
 		timeout:        timeout,
-		limitRetry:     limitRetry,
+		Unmarshal:      unmarshal,
+		Validate:       validate,
+		Reject:         reject,
 		handle:         handle,
 		Retry:          retry,
+		limitRetry:     limitRetry,
 		RetryCountName: retryCountName,
-		Error:          handleError,
+		HandleError:    handleError,
 		Goroutine:      goroutine,
 	}
 	if len(logs) >= 1 {
@@ -83,7 +99,7 @@ func (w *BatchWorker[T]) Handle(ctx context.Context, data []byte, attrs map[stri
 			return
 		}
 		if len(errs) > 0 {
-			w.HandleError(ctx, &v, errs, data, attrs)
+			w.Reject(ctx, &v, errs, data, attrs)
 			return
 		}
 	}
@@ -95,7 +111,13 @@ func (w *BatchWorker[T]) Handle(ctx context.Context, data []byte, attrs map[stri
 	}
 	w.mux.Unlock()
 }
-
+func (w *BatchWorker[T]) CallByTimer(ctx context.Context) {
+	w.mux.Lock()
+	if w.ready(ctx) {
+		w.execute(ctx)
+	}
+	w.mux.Unlock()
+}
 func (w *BatchWorker[T]) ready(ctx context.Context) bool {
 	isReady := false
 	now := time.Now()
@@ -122,7 +144,7 @@ func (w *BatchWorker[T]) execute(ctx context.Context) {
 	if err != nil && w.LogError != nil {
 		w.LogError(ctx, "Error of batch handling: "+err.Error())
 	}
-	if errList != nil && len(errList) > 0 {
+	if len(errList) > 0 {
 		if w.Retry == nil {
 			if w.LogError != nil {
 				l := len(errList)
@@ -150,8 +172,8 @@ func (w *BatchWorker[T]) execute(ctx context.Context) {
 						x := CreateLog(errList[i].Data, errList[i].Attributes)
 						w.LogInfo(ctx, fmt.Sprintf("Retry: %d . Retry limitation: %d . Message: %s.", retryCount, w.limitRetry, x))
 					}
-					if w.Error != nil {
-						w.Error(ctx, errList[i].Data, errList[i].Attributes)
+					if w.HandleError != nil {
+						w.HandleError(ctx, errList[i].Data, errList[i].Attributes)
 					}
 					continue
 				} else if w.LogInfo != nil {
@@ -182,18 +204,18 @@ func (w *BatchWorker[T]) Run(ctx context.Context) {
 		for {
 			select {
 			case <-ticker.C:
-				w.Handle(ctx, nil, nil)
+				w.CallByTimer(ctx)
 			}
 		}
 	}()
 }
 func CreateLog(data []byte, header map[string]string) interface{} {
-	if header == nil || len(header) == 0 {
+	if len(header) == 0 {
 		return data
 	}
 	m := make(map[string]interface{})
 	m["data"] = data
-	if header != nil && len(header) > 0 {
+	if len(header) > 0 {
 		m["attributes"] = header
 	}
 	return m

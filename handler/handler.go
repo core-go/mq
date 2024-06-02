@@ -8,9 +8,11 @@ import (
 )
 
 type Handler[T any] struct {
+	Unmarshal   func(data []byte, v any) error
 	Write       func(ctx context.Context, model *T) error
 	Validate    func(context.Context, *T) ([]ErrorMessage, error)
-	HandleError func(context.Context, *T, []ErrorMessage, []byte)
+	Reject      func(context.Context, *T, []ErrorMessage, []byte)
+	HandleError func(context.Context, []byte)
 	Retries     []time.Duration
 	Goroutines  bool
 	LogError    func(context.Context, string)
@@ -18,18 +20,35 @@ type Handler[T any] struct {
 	Key         string
 }
 
-func NewHandlerByConfig[T any](c *RetryConfig, write func(context.Context, *T) error, validate func(context.Context, *T) ([]ErrorMessage, error), handleError func(context.Context, *T, []ErrorMessage, []byte), goroutines bool, key string, logs ...func(context.Context, string)) *Handler[T] {
+func NewHandlerByConfig[T any](c *RetryConfig,
+	write func(context.Context, *T) error,
+	validate func(context.Context, *T) ([]ErrorMessage, error),
+	reject func(context.Context, *T, []ErrorMessage, []byte),
+	handleError func(context.Context, []byte),
+	goroutines bool, key string, logs ...func(context.Context, string)) *Handler[T] {
 	if c == nil {
-		return NewHandlerWithKey[T](write, validate, handleError, nil, goroutines, key, logs...)
+		return NewHandlerWithKey[T](nil, write, validate, reject, handleError, nil, goroutines, key, logs...)
 	} else {
 		retries := DurationsFromValue(*c, "Retry", 20)
-		return NewHandlerWithKey[T](write, validate, handleError, retries, goroutines, key, logs...)
+		return NewHandlerWithKey[T](nil, write, validate, reject, handleError, retries, goroutines, key, logs...)
 	}
 }
-func NewHandlerWithKey[T any](write func(context.Context, *T) error, validate func(context.Context, *T) ([]ErrorMessage, error), handleError func(context.Context, *T, []ErrorMessage, []byte), retries []time.Duration, goroutines bool, key string, logs ...func(context.Context, string)) *Handler[T] {
+func NewHandlerWithKey[T any](
+	unmarshal func(data []byte, v any) error,
+	write func(context.Context, *T) error,
+	validate func(context.Context, *T) ([]ErrorMessage, error),
+	reject func(context.Context, *T, []ErrorMessage, []byte),
+	handleError func(context.Context, []byte),
+	retries []time.Duration,
+	goroutines bool, key string, logs ...func(context.Context, string)) *Handler[T] {
+	if unmarshal == nil {
+		unmarshal = json.Unmarshal
+	}
 	c := &Handler[T]{
 		Write:       write,
+		Unmarshal:   unmarshal,
 		Validate:    validate,
+		Reject:      reject,
 		HandleError: handleError,
 		Retries:     retries,
 		Goroutines:  goroutines,
@@ -73,7 +92,7 @@ func (c *Handler[T]) Handle(ctx context.Context, data []byte) {
 			return
 		}
 		if len(errs) > 0 {
-			c.HandleError(ctx, &v, errs, data)
+			c.Reject(ctx, &v, errs, data)
 		}
 	}
 	if c.Goroutines {
@@ -102,11 +121,17 @@ func (c *Handler[T]) write(ctx context.Context, data []byte, item *T) error {
 		}, c.LogError)
 		if err != nil && c.LogError != nil {
 			c.LogError(ctx, fmt.Sprintf("Failed to write after %d retries: %s. Error: %s.", len(c.Retries), data, err.Error()))
+			if c.HandleError != nil {
+				c.HandleError(ctx, data)
+			}
 		}
 		return nil
 	} else {
 		if c.LogError != nil {
 			c.LogError(ctx, fmt.Sprintf("Failed to write %s . Error: %s", data, er3.Error()))
+		}
+		if c.HandleError != nil {
+			c.HandleError(ctx, data)
 		}
 		return er3
 	}
