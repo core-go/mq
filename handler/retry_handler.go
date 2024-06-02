@@ -7,7 +7,7 @@ import (
 	"strconv"
 )
 
-type HandlerConfig struct {
+type RetryHandlerConfig struct {
 	RetryCountName string `yaml:"retry_count_name" mapstructure:"retry_count_name" json:"retryCountName,omitempty" gorm:"column:retrycountname" bson:"retryCountName,omitempty" dynamodbav:"retryCountName,omitempty" firestore:"retryCountName,omitempty"`
 	LimitRetry     int    `yaml:"limit_retry" mapstructure:"limit_retry" json:"limitRetry,omitempty" gorm:"column:limitretry" bson:"limitRetry,omitempty" dynamodbav:"limitRetry,omitempty" firestore:"limitRetry,omitempty"`
 	Goroutines     bool   `yaml:"goroutines" mapstructure:"goroutines" json:"goroutines,omitempty" gorm:"column:goroutines" bson:"goroutines,omitempty" dynamodbav:"goroutines,omitempty" firestore:"goroutines,omitempty"`
@@ -30,7 +30,7 @@ type RetryHandler[T any] struct {
 }
 
 func NewRetryHandlerByConfig[T any](
-	c HandlerConfig,
+	c RetryHandlerConfig,
 	write func(context.Context, *T) error,
 	validate func(context.Context, *T) ([]ErrorMessage, error),
 	reject func(context.Context, *T, []ErrorMessage, []byte, map[string]string),
@@ -40,7 +40,7 @@ func NewRetryHandlerByConfig[T any](
 	return NewRetryHandler[T](nil, write, validate, reject, handleError, retry, c.LimitRetry, c.RetryCountName, c.Goroutines, c.Key, logs...)
 }
 func NewRetryHandlerByConfigAndUnmarshal[T any](
-	c HandlerConfig,
+	c RetryHandlerConfig,
 	unmarshal func(data []byte, v any) error,
 	write func(context.Context, *T) error,
 	validate func(context.Context, *T) ([]ErrorMessage, error),
@@ -94,16 +94,16 @@ func (c *RetryHandler[T]) Handle(ctx context.Context, data []byte, attrs map[str
 	if c.LogInfo != nil {
 		key := GetString(ctx, c.Key)
 		if len(key) > 0 {
-			c.LogInfo(ctx, fmt.Sprintf("Received message with key %s : %s", key, data))
+			c.LogInfo(ctx, fmt.Sprintf("Received message with key %s : %s", key, GetLog(data, attrs)))
 		} else {
-			c.LogInfo(ctx, fmt.Sprintf("Received message: %s", data))
+			c.LogInfo(ctx, fmt.Sprintf("Received message: %s", GetLog(data, attrs)))
 		}
 	}
 	var v T
 	er1 := c.Unmarshal(data, &v)
 	if er1 != nil {
 		if c.LogError != nil {
-			c.LogError(ctx, fmt.Sprintf("cannot unmarshal item: %s. Error: %s", data, er1.Error()))
+			c.LogError(ctx, fmt.Sprintf("cannot unmarshal item: %s. Error: %s", GetLog(data, attrs), er1.Error()))
 		}
 		return
 	}
@@ -140,7 +140,7 @@ func Write[T any](ctx context.Context, write func(context.Context, T) error, ite
 		return
 	}
 	if logError != nil {
-		logError(ctx, fmt.Sprintf("Fail to write %s . Error: %s", data, er3.Error()))
+		logError(ctx, fmt.Sprintf("Fail to write %s . Error: %s", GetLog(data, attrs), er3.Error()))
 	}
 
 	if retry == nil {
@@ -162,34 +162,29 @@ func Write[T any](ctx context.Context, write func(context.Context, T) error, ite
 	retryCount++
 	if retryCount > limitRetry {
 		if logInfo != nil {
-			if attrs == nil || len(attrs) == 0 {
-				logInfo(ctx, fmt.Sprintf("Retry: %d . Retry limitation: %d . Message: %s.", retryCount, limitRetry, data))
-			} else {
-				logInfo(ctx, fmt.Sprintf("Retry: %d . Retry limitation: %d . Message: %s %v", retryCount, limitRetry, data, attrs))
-			}
-
+			logInfo(ctx, fmt.Sprintf("Retry: %d . Retry limitation: %d . Message: %s.", retryCount-1, limitRetry, GetLog(data, attrs)))
 		}
 		if handleError != nil {
 			handleError(ctx, data, attrs)
 		}
 	} else {
 		if logInfo != nil {
-			if attrs == nil || len(attrs) == 0 {
-				logInfo(ctx, fmt.Sprintf("Retry: %d . Message: %s", retryCount, data))
-			} else {
-				logInfo(ctx, fmt.Sprintf("Retry: %d . Message: %s %v", retryCount, data, attrs))
-			}
+			logInfo(ctx, fmt.Sprintf("Retry: %d . Message: %s", retryCount-1, GetLog(data, attrs)))
 		}
 		attrs[retryCountName] = strconv.Itoa(retryCount)
 		er2 := retry(ctx, data, attrs)
 		if er2 != nil {
 			if logError != nil {
-				if attrs == nil || len(attrs) == 0 {
-					logError(ctx, fmt.Sprintf("Cannot retry %s . Error: %s", data, er2.Error()))
-				} else {
-					logError(ctx, fmt.Sprintf("Cannot retry %s %v. Error: %s", data, attrs, er2.Error()))
-				}
+				logError(ctx, fmt.Sprintf("Cannot retry %s . Error: %s", GetLog(data, attrs), er2.Error()))
 			}
 		}
+	}
+}
+
+func GetLog(data []byte, attrs map[string]string) string {
+	if len(attrs) == 0 {
+		return fmt.Sprintf("%s %+v", data, attrs)
+	} else {
+		return fmt.Sprintf("%s", data)
 	}
 }

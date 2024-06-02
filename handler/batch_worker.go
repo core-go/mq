@@ -27,7 +27,7 @@ type BatchWorker[T any] struct {
 	handle             func(ctx context.Context, data []Message[T]) ([]Message[T], error)
 	Validate           func(context.Context, *T) ([]ErrorMessage, error)
 	Reject             func(context.Context, *T, []ErrorMessage, []byte, map[string]string)
-	HandleError        func(context.Context, []byte, map[string]string) error
+	HandleError        func(context.Context, []byte, map[string]string)
 	Retry              func(context.Context, []byte, map[string]string) error
 	LimitRetry         int
 	RetryCountName     string
@@ -46,7 +46,7 @@ func NewBatchWorkerByConfig[T any](
 	handle func(context.Context, []Message[T]) ([]Message[T], error),
 	validate func(context.Context, *T) ([]ErrorMessage, error),
 	reject func(context.Context, *T, []ErrorMessage, []byte, map[string]string),
-	handleError func(context.Context, []byte, map[string]string) error,
+	handleError func(context.Context, []byte, map[string]string),
 	retry func(context.Context, []byte, map[string]string) error,
 	logs ...func(context.Context, string)) *BatchWorker[T] {
 	return NewBatchWorker[T](c.BatchSize, c.Timeout, nil, handle, validate, reject, handleError, retry, c.LimitRetry, c.RetryCountName, c.Goroutines, c.Key, logs...)
@@ -57,7 +57,7 @@ func NewBatchWorkerByConfigAndUnmarshal[T any](
 	handle func(context.Context, []Message[T]) ([]Message[T], error),
 	validate func(context.Context, *T) ([]ErrorMessage, error),
 	reject func(context.Context, *T, []ErrorMessage, []byte, map[string]string),
-	handleError func(context.Context, []byte, map[string]string) error,
+	handleError func(context.Context, []byte, map[string]string),
 	retry func(context.Context, []byte, map[string]string) error,
 	logs ...func(context.Context, string)) *BatchWorker[T] {
 	return NewBatchWorker[T](c.BatchSize, c.Timeout, unmarshal, handle, validate, reject, handleError, retry, c.LimitRetry, c.RetryCountName, c.Goroutines, c.Key, logs...)
@@ -68,7 +68,7 @@ func NewBatchWorker[T any](
 	handle func(context.Context, []Message[T]) ([]Message[T], error),
 	validate func(context.Context, *T) ([]ErrorMessage, error),
 	reject func(context.Context, *T, []ErrorMessage, []byte, map[string]string),
-	handleError func(context.Context, []byte, map[string]string) error,
+	handleError func(context.Context, []byte, map[string]string),
 	retry func(context.Context, []byte, map[string]string) error,
 	limitRetry int,
 	retryCountName string,
@@ -95,11 +95,14 @@ func NewBatchWorker[T any](
 		Goroutine:      goroutine,
 		Key:            key,
 	}
-	if len(logs) >= 1 {
+	if len(logs) > 0 {
 		w.LogError = logs[0]
 	}
-	if len(logs) >= 2 {
+	if len(logs) > 1 {
 		w.LogInfo = logs[1]
+	}
+	if len(logs) > 2 {
+		w.LogInfo = logs[2]
 	}
 	return w
 }
@@ -111,16 +114,16 @@ func (w *BatchWorker[T]) Handle(ctx context.Context, data []byte, attrs map[stri
 	if w.LogInfo != nil {
 		key := GetString(ctx, w.Key)
 		if len(key) > 0 {
-			w.LogInfo(ctx, fmt.Sprintf("Received message with key %s : %s", key, data))
+			w.LogInfo(ctx, fmt.Sprintf("Received message with key %s : %s", key, GetLog(data, attrs)))
 		} else {
-			w.LogInfo(ctx, fmt.Sprintf("Received message: %s", data))
+			w.LogInfo(ctx, fmt.Sprintf("Received message: %s", GetLog(data, attrs)))
 		}
 	}
 	var v T
 	er1 := json.Unmarshal(data, &v)
 	if er1 != nil {
 		if w.LogError != nil {
-			w.LogError(ctx, fmt.Sprintf("cannot unmarshal item: %s. Error: %s", data, er1.Error()))
+			w.LogError(ctx, fmt.Sprintf("cannot unmarshal item: %s . Error: %s", GetLog(data, attrs), er1.Error()))
 		}
 		return
 	}
@@ -189,11 +192,7 @@ func (w *BatchWorker[T]) execute(ctx context.Context) {
 			if w.LogError != nil {
 				l := len(errList)
 				for i := 0; i < l; i++ {
-					if len(errList[i].Attributes) > 0 {
-						w.LogError(ctx, fmt.Sprintf("Error message: %s %+v", errList[i].Data, errList[i].Attributes))
-					} else {
-						w.LogError(ctx, fmt.Sprintf("Error message: %s.", errList[i].Data))
-					}
+					w.LogError(ctx, fmt.Sprintf("Error message: %s.", GetLog(errList[i].Data, errList[i].Attributes)))
 				}
 			}
 		} else {
@@ -212,31 +211,19 @@ func (w *BatchWorker[T]) execute(ctx context.Context) {
 				retryCount++
 				if retryCount > w.LimitRetry {
 					if w.LogInfo != nil {
-						if len(errList[i].Attributes) > 0 {
-							w.LogInfo(ctx, fmt.Sprintf("Retry: %d . Retry limitation: %d . Message: %s %+v", retryCount, w.LimitRetry, errList[i].Data, errList[i].Attributes))
-						} else {
-							w.LogInfo(ctx, fmt.Sprintf("Retry: %d . Retry limitation: %d . Message: %s.", retryCount, w.LimitRetry, errList[i].Data))
-						}
+						w.LogInfo(ctx, fmt.Sprintf("Retry: %d . Retry limitation: %d . Message: %s.", retryCount-1, w.LimitRetry, GetLog(errList[i].Data, errList[i].Attributes)))
 					}
 					if w.HandleError != nil {
 						w.HandleError(ctx, errList[i].Data, errList[i].Attributes)
 					}
 					continue
 				} else if w.LogInfo != nil {
-					if len(errList[i].Attributes) > 0 {
-						w.LogInfo(ctx, fmt.Sprintf("Retry: %d . Message: %s %+v", retryCount, errList[i].Data, errList[i].Attributes))
-					} else {
-						w.LogInfo(ctx, fmt.Sprintf("Retry: %d . Message: %s.", retryCount, errList[i].Data))
-					}
+					w.LogInfo(ctx, fmt.Sprintf("Retry: %d . Message: %s", retryCount-1, GetLog(errList[i].Data, errList[i].Attributes)))
 				}
 				errList[i].Attributes[w.RetryCountName] = strconv.Itoa(retryCount)
 				er3 := w.Retry(ctx, errList[i].Data, errList[i].Attributes)
 				if er3 != nil && w.LogError != nil {
-					if len(errList[i].Attributes) > 0 {
-						w.LogError(ctx, fmt.Sprintf("Cannot retry %s %+v. Error: %s", errList[i].Data, errList[i].Attributes, er3.Error()))
-					} else {
-						w.LogError(ctx, fmt.Sprintf("Cannot retry %s . Error: %s", errList[i].Data, er3.Error()))
-					}
+					w.LogError(ctx, fmt.Sprintf("Cannot retry %s . Error: %s", GetLog(errList[i].Data, errList[i].Attributes), er3.Error()))
 				}
 			}
 		}

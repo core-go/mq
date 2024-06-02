@@ -7,6 +7,11 @@ import (
 	"time"
 )
 
+type HandlerConfig struct {
+	Retry      *RetryConfig `yaml:"retry" mapstructure:"retry" json:"retry,omitempty" gorm:"column:retry" bson:"retry,omitempty" dynamodbav:"retry,omitempty" firestore:"retry,omitempty"`
+	Goroutines bool         `yaml:"goroutines" mapstructure:"goroutines" json:"goroutines,omitempty" gorm:"column:goroutines" bson:"goroutines,omitempty" dynamodbav:"goroutines,omitempty" firestore:"goroutines,omitempty"`
+	Key        string       `yaml:"key" mapstructure:"key" json:"key,omitempty" gorm:"column:key" bson:"key,omitempty" dynamodbav:"key,omitempty" firestore:"key,omitempty"`
+}
 type Handler[T any] struct {
 	Unmarshal   func(data []byte, v any) error
 	Write       func(ctx context.Context, model *T) error
@@ -15,12 +20,12 @@ type Handler[T any] struct {
 	HandleError func(context.Context, []byte)
 	Retries     []time.Duration
 	Goroutines  bool
+	Key         string
 	LogError    func(context.Context, string)
 	LogInfo     func(context.Context, string)
-	Key         string
 }
 
-func NewHandlerByConfig[T any](c *RetryConfig,
+func NewHandlerByConfig[T any](c HandlerConfig,
 	write func(context.Context, *T) error,
 	validate func(context.Context, *T) ([]ErrorMessage, error),
 	reject func(context.Context, *T, []ErrorMessage, []byte),
@@ -28,18 +33,18 @@ func NewHandlerByConfig[T any](c *RetryConfig,
 	goroutines bool, key string, logs ...func(context.Context, string)) *Handler[T] {
 	return NewHandlerByConfigAndUnmarshal[T](c, nil, write, validate, reject, handleError, goroutines, key, logs...)
 }
-func NewHandlerByConfigAndUnmarshal[T any](c *RetryConfig,
+func NewHandlerByConfigAndUnmarshal[T any](c HandlerConfig,
 	unmarshal func(data []byte, v any) error,
 	write func(context.Context, *T) error,
 	validate func(context.Context, *T) ([]ErrorMessage, error),
 	reject func(context.Context, *T, []ErrorMessage, []byte),
 	handleError func(context.Context, []byte),
 	goroutines bool, key string, logs ...func(context.Context, string)) *Handler[T] {
-	if c == nil {
-		return NewHandlerWithKey[T](unmarshal, write, validate, reject, handleError, nil, goroutines, key, logs...)
+	if c.Retry == nil {
+		return NewHandlerWithKey[T](unmarshal, write, validate, reject, handleError, nil, c.Goroutines, c.Key, logs...)
 	} else {
-		retries := DurationsFromValue(*c, "Retry", 20)
-		return NewHandlerWithKey[T](unmarshal, write, validate, reject, handleError, retries, goroutines, key, logs...)
+		retries := DurationsFromValue(c.Retry, "Retry", 20)
+		return NewHandlerWithKey[T](unmarshal, write, validate, reject, handleError, retries, c.Goroutines, c.Key, logs...)
 	}
 }
 func NewHandlerWithKey[T any](
