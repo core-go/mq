@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/confluentinc/confluent-kafka-go/kafka"
 	"log"
+	"strings"
 	"time"
 )
 
@@ -16,6 +17,41 @@ type (
 		LogInfo  func(context.Context, string)
 	}
 )
+
+func NewKafkaConsumerByConfig(c ConsumerConfig) (*kafka.Consumer, error) {
+	conf := kafka.ConfigMap{
+		"bootstrap.servers": strings.Join(c.Brokers, ","),
+		"group.id":          c.GroupID,
+	}
+
+	if c.Client.TLSEnable == nil || *c.Client.TLSEnable == false {
+		conf["security.protocol"] = ProtocolSSL
+		conf["sasl.username"] = *c.Client.Username
+		conf["sasl.password"] = *c.Client.Password
+	} else {
+		panic("not supported yet")
+	}
+
+	if c.Client.Algorithm == "" {
+		conf["sasl.mechanism"] = SASLTypeSCRAMSHA256
+	} else {
+		conf["sasl.mechanism"] = c.Client.Algorithm
+	}
+
+	if c.InitialOffsets == nil {
+		conf["auto.offset.reset"] = kafka.OffsetBeginning
+	} else {
+		conf["auto.offset.reset"] = kafka.Offset(*c.InitialOffsets)
+	}
+
+	if c.AckOnConsume {
+		conf["enable.auto.commit"] = true
+	} else {
+		conf["enable.auto.commit"] = false
+	}
+
+	return kafka.NewConsumer(&conf)
+}
 
 func NewConsumerByConfig(c ConsumerConfig, logs ...func(context.Context, string)) (*Consumer, error) {
 	if c.Client.Retry != nil && c.Client.Retry.Retry1 > 0 {
@@ -80,7 +116,7 @@ func NewConsumerByConfigAndRetries(c ConsumerConfig, retries ...time.Duration) (
 	}
 }
 
-func NewConsumerByConfigAndRetryArray(c ConsumerConfig, retries []time.Duration, options ...func(context.Context, []byte) ([]byte, error)) (*Consumer, error) {
+func NewConsumerByConfigAndRetryArray(c ConsumerConfig, retries []time.Duration) (*Consumer, error) {
 	consumer, er1 := NewKafkaConsumerByConfig(c)
 	if er1 == nil {
 		return nil, er1

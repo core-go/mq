@@ -13,12 +13,12 @@ type (
 		Producer *kafka.Producer
 		Topic    string
 		Timeout  int
-		Convert  func(context.Context, []byte) ([]byte, error)
 		Generate func() string
 		Error    func(*kafka.Message, error) error
 	}
 )
-func NewProducerByConfigMap(c kafka.ConfigMap, topic string, timeout int, convert func(context.Context, []byte) ([]byte, error), options ...func() string) (*Producer, error) {
+
+func NewProducerByConfigMap(c kafka.ConfigMap, topic string, timeout int, options ...func() string) (*Producer, error) {
 	p, err := kafka.NewProducer(&c)
 	if err != nil {
 		fmt.Printf("Failed to create Producer: %s\n", err)
@@ -35,12 +35,11 @@ func NewProducerByConfigMap(c kafka.ConfigMap, topic string, timeout int, conver
 		Producer: p,
 		Topic:    topic,
 		Timeout:  timeout,
-		Convert:  convert,
 		Generate: generate,
 	}
 	return pd, nil
 }
-func NewProducerByConfig(c ProducerConfig, convert func(context.Context, []byte) ([]byte, error), options ...func() string) (*Producer, error) {
+func NewProducerByConfig(c ProducerConfig, options ...func() string) (*Producer, error) {
 	p, err := NewKafkaProducerByConfig(c)
 	if err != nil {
 		fmt.Printf("Failed to create Producer: %s\n", err)
@@ -58,12 +57,11 @@ func NewProducerByConfig(c ProducerConfig, convert func(context.Context, []byte)
 		Producer: p,
 		Topic:    c.Topic,
 		Timeout:  timeout,
-		Convert:  convert,
 		Generate: generate,
 	}
 	return pd, nil
 }
-func NewProducer(producer *kafka.Producer, topic string, timeout int, convert func(context.Context, []byte) ([]byte, error), options ...func() string) *Producer {
+func NewProducer(producer *kafka.Producer, topic string, timeout int, options ...func() string) *Producer {
 	var generate func() string
 	if len(options) > 0 {
 		generate = options[0]
@@ -71,18 +69,18 @@ func NewProducer(producer *kafka.Producer, topic string, timeout int, convert fu
 	if timeout <= 0 {
 		timeout = 100
 	}
-	return &Producer{Producer: producer, Topic: topic, Timeout: timeout, Convert: convert, Generate: generate}
+	return &Producer{Producer: producer, Topic: topic, Timeout: timeout, Generate: generate}
 }
-func NewProducerByConfigAndRetries(c ProducerConfig, convert func(context.Context, []byte) ([]byte, error), retries ...time.Duration) (*Producer, error) {
+func NewProducerByConfigAndRetries(c ProducerConfig, retries ...time.Duration) (*Producer, error) {
 	if len(retries) == 0 {
-		return NewProducerByConfig(c, convert)
+		return NewProducerByConfig(c)
 	} else {
-		return NewProducerWithRetryArray(c, retries, convert)
+		return NewProducerWithRetryArray(c, retries)
 	}
 }
 
-func NewProducerWithRetryArray(c ProducerConfig, retries []time.Duration, convert func(context.Context, []byte) ([]byte, error), options ...func() string) (*Producer, error) {
-	p, err := NewProducerByConfig(c, convert, options...)
+func NewProducerWithRetryArray(c ProducerConfig, retries []time.Duration, options ...func() string) (*Producer, error) {
+	p, err := NewProducerByConfig(c, options...)
 	if err == nil {
 		return p, nil
 	}
@@ -90,7 +88,7 @@ func NewProducerWithRetryArray(c ProducerConfig, retries []time.Duration, conver
 	i := 0
 	err = Retry(retries, func() (err error) {
 		i = i + 1
-		p2, er2 := NewProducerByConfig(c, convert, options...)
+		p2, er2 := NewProducerByConfig(c, options...)
 		p = p2
 		if er2 == nil {
 			log.Println(fmt.Sprintf("create new Producer successfully after %d retries", i))
@@ -102,30 +100,13 @@ func NewProducerWithRetryArray(c ProducerConfig, retries []time.Duration, conver
 	}
 	return p, err
 }
-func (p *Producer) Put(ctx context.Context, data []byte, attributes map[string]string) error {
-	return p.Produce(ctx, data, attributes)
-}
-func (p *Producer) Write(ctx context.Context, data []byte, attributes map[string]string) error {
-	return p.Produce(ctx, data, attributes)
-}
-func (p *Producer) Publish(ctx context.Context, data []byte, attributes map[string]string) error {
-	return p.Produce(ctx, data, attributes)
-}
-func (p *Producer) Send(ctx context.Context, data []byte, attributes map[string]string) error {
-	return p.Produce(ctx, data, attributes)
-}
+
 func (p *Producer) Produce(ctx context.Context, data []byte, messageAttributes map[string]string) error {
-	var binary = data
 	var err error
-	if p.Convert != nil {
-		binary, err = p.Convert(ctx, data)
-		if err != nil {
-			return err
-		}
-	}
 	msg := kafka.Message{
 		TopicPartition: kafka.TopicPartition{Topic: &p.Topic, Partition: kafka.PartitionAny},
-		Value:          binary}
+		Value:          data,
+	}
 	if messageAttributes != nil {
 		msg.Headers = MapToHeader(messageAttributes)
 	}
@@ -159,17 +140,11 @@ func (p *Producer) ProduceValue(ctx context.Context, data []byte) error {
 	return p.Produce(ctx, data, nil)
 }
 func (p *Producer) ProduceWithKey(ctx context.Context, key []byte, data []byte, messageAttributes map[string]string) error {
-	var binary = data
 	var err error
-	if p.Convert != nil {
-		binary, err = p.Convert(ctx, data)
-		if err != nil {
-			return err
-		}
-	}
 	msg := kafka.Message{
 		TopicPartition: kafka.TopicPartition{Topic: &p.Topic, Partition: kafka.PartitionAny},
-		Value:          binary}
+		Value:          data,
+	}
 	if messageAttributes != nil {
 		msg.Headers = MapToHeader(messageAttributes)
 	}

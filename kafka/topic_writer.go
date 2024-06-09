@@ -10,18 +10,18 @@ import (
 
 type TopicWriter struct {
 	Writer   *kafka.Writer
-	Generate func()string
+	Generate func() string
 }
 
-func NewTopicWriter(writer *kafka.Writer, options...func()string) (*TopicWriter, error) {
-	var generate func()string
+func NewTopicWriter(writer *kafka.Writer, options ...func() string) (*TopicWriter, error) {
+	var generate func() string
 	if len(options) > 0 {
 		generate = options[0]
 	}
 	return &TopicWriter{Writer: writer, Generate: generate}, nil
 }
 
-func NewTopicWriterByConfig(c WriterConfig, options...func()string) (*TopicWriter, error) {
+func NewTopicWriterByConfig(c WriterConfig, options ...func() string) (*TopicWriter, error) {
 	dialer := GetDialer(c.Client.Username, c.Client.Password, scram.SHA512, &kafka.Dialer{
 		Timeout:   30 * time.Second,
 		DualStack: true,
@@ -29,18 +29,6 @@ func NewTopicWriterByConfig(c WriterConfig, options...func()string) (*TopicWrite
 	})
 	writer := NewKafkaWriter(c.Topic, c.Brokers, dialer)
 	return NewTopicWriter(writer, options...)
-}
-func (p *TopicWriter) Publish(ctx context.Context, topic string, data []byte, attributes map[string]string) error {
-	return p.Write(ctx, topic, data, attributes)
-}
-func (p *TopicWriter) Send(ctx context.Context, topic string, data []byte, attributes map[string]string) error {
-	return p.Write(ctx, topic, data, attributes)
-}
-func (p *TopicWriter) Put(ctx context.Context, topic string, data []byte, attributes map[string]string) error {
-	return p.Write(ctx, topic, data, attributes)
-}
-func (p *TopicWriter) Produce(ctx context.Context, topic string, data []byte, attributes map[string]string) error {
-	return p.Write(ctx, topic, data, attributes)
 }
 func (p *TopicWriter) Write(ctx context.Context, topic string, data []byte, attributes map[string]string) error {
 	msg := kafka.Message{Value: data}

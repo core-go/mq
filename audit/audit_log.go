@@ -6,7 +6,7 @@ import (
 	"time"
 )
 
-func NewAuditLogSender(send func(context.Context, []byte, map[string]string) (string, error), config AuditLogConfig, schema AuditLogSchema, options ...func(context.Context) (string, error)) *AuditLogSender {
+func NewAuditLogSender(send func(context.Context, []byte, map[string]string) error, config AuditLogConfig, schema AuditLogSchema, options ...func(context.Context) (string, error)) *AuditLogSender {
 	var generate func(context.Context) (string, error)
 	if len(options) >= 1 {
 		generate = options[0]
@@ -50,7 +50,7 @@ type AuditLogSchema struct {
 	Headers   []string `mapstructure:"headers" json:"headers,omitempty" gorm:"column:headers" bson:"headers,omitempty" dynamodbav:"headers,omitempty" firestore:"headers,omitempty"`
 }
 type AuditLogSender struct {
-	send     func(ctx context.Context, data []byte, attributes map[string]string) (string, error)
+	send     func(ctx context.Context, data []byte, attributes map[string]string) error
 	Config   AuditLogConfig
 	Schema   AuditLogSchema
 	Generate func(ctx context.Context) (string, error)
@@ -92,7 +92,7 @@ func (s *AuditLogSender) Write(ctx context.Context, resource string, action stri
 		return er1
 	}
 	if !s.Config.Goroutines {
-		_, er3 := s.send(ctx, msg, headers)
+		er3 := s.send(ctx, msg, headers)
 		return er3
 	} else {
 		go s.send(ctx, msg, headers)

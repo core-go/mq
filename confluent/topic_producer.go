@@ -16,6 +16,7 @@ type (
 		Error    func(*kafka.Message, error) error
 	}
 )
+
 func NewTopicProducerByConfigMap(c kafka.ConfigMap, timeout int, convert func(context.Context, []byte) ([]byte, error), options ...func() string) (*TopicProducer, error) {
 	p, err := kafka.NewProducer(&c)
 	if err != nil {
@@ -58,7 +59,7 @@ func NewTopicProducerByConfig(c ProducerConfig, timeout int, convert func(contex
 	}
 	return pd, nil
 }
-func NewSimpleProducer(producer *kafka.Producer, timeout int, convert func(context.Context, []byte) ([]byte, error), options ...func() string) *TopicProducer {
+func NewTopicProducer(producer *kafka.Producer, timeout int, convert func(context.Context, []byte) ([]byte, error), options ...func() string) *TopicProducer {
 	var generate func() string
 	if len(options) > 0 {
 		generate = options[0]
