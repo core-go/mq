@@ -13,6 +13,15 @@ type Subscriber struct {
 	ID           string
 }
 
+func ConfigureSubscription(subscription *pubsub.Subscription, c SubscriptionConfig) *pubsub.Subscription {
+	if c.MaxOutstandingMessages > 0 {
+		subscription.ReceiveSettings.MaxOutstandingMessages = c.MaxOutstandingMessages
+	}
+	if c.NumGoroutines > 0 {
+		subscription.ReceiveSettings.NumGoroutines = c.NumGoroutines
+	}
+	return subscription
+}
 func NewSubscriber(client *pubsub.Client, subscriptionId string, c SubscriptionConfig, logError func(context.Context, string), ackOnConsume bool, id string) *Subscriber {
 	subscription := client.Subscription(subscriptionId)
 	return &Subscriber{Client: client, Subscription: ConfigureSubscription(subscription, c), LogError: logError, AckOnConsume: ackOnConsume, ID: id}

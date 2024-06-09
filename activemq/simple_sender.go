@@ -5,52 +5,29 @@ import (
 	"github.com/go-stomp/stomp"
 )
 
-type SimpleSender struct {
+type DestinationSender struct {
 	Conn        *stomp.Conn
 	ContentType string
-	Convert     func(context.Context, []byte) ([]byte, error)
 }
 
-func NewSimpleSender(client *stomp.Conn, contentType string, options ...func(context.Context, []byte) ([]byte, error)) *SimpleSender {
+func NewDestinationSender(client *stomp.Conn, contentType string) *DestinationSender {
 	if len(contentType) == 0 {
 		contentType = "text/plain"
 	}
-	var convert func(context.Context, []byte) ([]byte, error)
-	if len(options) > 0 {
-		convert = options[0]
-	}
-	return &SimpleSender{Conn: client, ContentType: contentType, Convert: convert}
+	return &DestinationSender{Conn: client, ContentType: contentType}
 }
 
-func NewSimpleSenderByConfig(c Config, contentType string, options ...func(context.Context, []byte) ([]byte, error)) (*SimpleSender, error) {
+func NewDestinationSenderByConfig(c Config, contentType string) (*DestinationSender, error) {
 	conn, err := NewConn(c.UserName, c.Password, c.Addr)
 	if err != nil {
 		return nil, err
 	}
-	return NewSimpleSender(conn, contentType, options...), nil
+	return NewDestinationSender(conn, contentType), nil
 }
-func (p *SimpleSender) Put(ctx context.Context, destination string, data []byte, attributes map[string]string) (string, error) {
-	return p.Send(ctx, destination, data, attributes)
-}
-func (p *SimpleSender) Write(ctx context.Context, destination string, data []byte, attributes map[string]string) (string, error) {
-	return p.Send(ctx, destination, data, attributes)
-}
-func (p *SimpleSender) Produce(ctx context.Context, destination string, data []byte, attributes map[string]string) (string, error) {
-	return p.Send(ctx, destination, data, attributes)
-}
-func (p *SimpleSender) Publish(ctx context.Context, destination string, data []byte, attributes map[string]string) (string, error) {
-	return p.Send(ctx, destination, data, attributes)
-}
-func (p *SimpleSender) Send(ctx context.Context, destination string, data []byte, attributes map[string]string) (string, error) {
+func (p *DestinationSender) SendWithFrame(ctx context.Context, destination string, data []byte, attributes map[string]string) error {
 	opts := MapToFrame(attributes)
-	var binary = data
-	var err error
-	if p.Convert != nil {
-		binary, err = p.Convert(ctx, data)
-		if err != nil {
-			return "", err
-		}
-	}
-	err = p.Conn.Send(destination, p.ContentType, binary, opts...)
-	return "", err
+	return p.Conn.Send(destination, p.ContentType, data, opts...)
+}
+func (p *DestinationSender) Send(ctx context.Context, destination string, data []byte) error {
+	return p.Conn.Send(destination, p.ContentType, data)
 }
