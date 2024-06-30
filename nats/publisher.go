@@ -9,70 +9,46 @@ import (
 type Publisher struct {
 	Conn    *nats.Conn
 	Subject string
-	Convert func(context.Context, []byte)([]byte, error)
 }
 
-func NewPublisher(conn *nats.Conn, subject string, options...func(context.Context, []byte)([]byte, error)) *Publisher {
-	var convert func(context.Context, []byte)([]byte, error)
-	if len(options) > 0 {
-		convert = options[0]
-	}
-	return &Publisher{conn, subject, convert}
+func NewPublisher(conn *nats.Conn, subject string) *Publisher {
+	return &Publisher{conn, subject}
 }
-func NewPublisherByConfig(p PublisherConfig, options...func(context.Context, []byte)([]byte, error)) (*Publisher, error) {
+func NewPublisherByConfig(p PublisherConfig) (*Publisher, error) {
 	if p.Connection.Retry.Retry1 <= 0 {
-		conn, err := nats.Connect(p.Connection.Url, p.Connection.Options)
+		conn, err := nats.Connect(p.Connection.Url, p.Connection.Option)
 		if err != nil {
 			return nil, err
 		}
-		return NewPublisher(conn, p.Subject, options...), nil
+		return NewPublisher(conn, p.Subject), nil
 	} else {
 		durations := DurationsFromValue(p.Connection.Retry, "Retry", 9)
-		conn, err := NewConn(durations, p.Connection.Url, p.Connection.Options)
+		conn, err := NewConn(durations, p.Connection.Url, p.Connection.Option)
 		if err != nil {
 			return nil, err
 		}
-		return NewPublisher(conn, p.Subject, options...), nil
+		return NewPublisher(conn, p.Subject), nil
 	}
 }
-func (p *Publisher) Put(ctx context.Context, data []byte, attributes map[string]string) (string, error) {
-	return p.Publish(ctx, data, attributes)
-}
-func (p *Publisher) Send(ctx context.Context, data []byte, attributes map[string]string) (string, error) {
-	return p.Publish(ctx, data, attributes)
-}
-func (p *Publisher) Produce(ctx context.Context, data []byte, attributes map[string]string) (string, error) {
-	return p.Publish(ctx, data, attributes)
-}
-func (p *Publisher) Write(ctx context.Context, data []byte, attributes map[string]string) (string, error) {
-	return p.Publish(ctx, data, attributes)
-}
-func (p *Publisher) Publish(ctx context.Context, data []byte, attributes map[string]string) (string, error) {
+func (p *Publisher) Publish(ctx context.Context, data []byte, attributes map[string]string) error {
 	defer p.Conn.Flush()
-	var binary = data
-	var err error
-	if p.Convert != nil {
-		binary, err = p.Convert(ctx, data)
-		if err != nil {
-			return "", err
-		}
-	}
 	if attributes == nil {
-		err := p.Conn.Publish(p.Subject, binary)
-		return "", err
+		return p.Conn.Publish(p.Subject, data)
 	} else {
 		header := MapToHeader(attributes)
 		var msg = &nats.Msg{
 			Subject: p.Subject,
-			Data:    binary,
+			Data:    data,
 			Reply:   "",
-			Header: nats.Header(*header),
+			Header:  nats.Header(*header),
 		}
-		err := p.Conn.PublishMsg(msg)
-		return "", err
+		return p.Conn.PublishMsg(msg)
 	}
 }
-
+func (p *Publisher) PublishData(ctx context.Context, data []byte) error {
+	defer p.Conn.Flush()
+	return p.Conn.Publish(p.Subject, data)
+}
 func MapToHeader(attributes map[string]string) *http.Header {
 	if attributes == nil || len(attributes) == 0 {
 		return nil
