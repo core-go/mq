@@ -5,30 +5,26 @@ import (
 	"github.com/ibm-messaging/mq-golang/v5/ibmmq"
 )
 
-type Publisher struct {
+type QueuePublisher struct {
 	QueueManager *ibmmq.MQQueueManager
-	QueueName    string
 }
 
-func NewPublisher(manager *ibmmq.MQQueueManager, queueName string) *Publisher {
-	return &Publisher{manager, queueName}
+func NewQueuePublisher(manager *ibmmq.MQQueueManager) *QueuePublisher {
+	return &QueuePublisher{manager}
 }
 
-func NewPublisherByConfig(c QueueConfig, auth MQAuth) (*Publisher, error) {
+func NewQueuePublisherByConfig(c QueueConfig, auth MQAuth) (*QueuePublisher, error) {
 	mgr, err := NewQueueManagerByConfig(c, auth)
 	if err != nil {
 		return nil, err
 	}
-	return &Publisher{
-		QueueManager: mgr,
-		QueueName:    c.QueueName,
-	}, nil
+	return &QueuePublisher{QueueManager: mgr}, nil
 }
-func (p *Publisher) Publish(ctx context.Context, data []byte) error {
+func (p *QueuePublisher) Publish(ctx context.Context, queueName string, data []byte) error {
 	openOptions := ibmmq.MQOO_OUTPUT
 	od := ibmmq.NewMQOD()
 	od.ObjectType = ibmmq.MQOT_Q
-	od.ObjectName = p.QueueName
+	od.ObjectName = queueName
 
 	topicObject, err := p.QueueManager.Open(od, openOptions)
 	if err != nil {
@@ -44,7 +40,6 @@ func (p *Publisher) Publish(ctx context.Context, data []byte) error {
 
 	// Tell MQ what the message body format is. In this case, a text string
 	md.Format = ibmmq.MQFMT_STRING
-
 	// Now put the message to the queue
 	return topicObject.Put(md, pmo, data)
 }

@@ -3,9 +3,17 @@ package ibmmq
 import (
 	"context"
 	"fmt"
-	"github.com/core-go/mq"
 	"github.com/ibm-messaging/mq-golang/v5/ibmmq"
 )
+
+type SubscriberConfig struct {
+	ManagerName    string `yaml:"manager_name" mapstructure:"manager_name" json:"managerName,omitempty" gorm:"column:managerName" bson:"managerName,omitempty" dynamodbav:"managerName,omitempty" firestore:"managerName,omitempty"`
+	ChannelName    string `yaml:"channel_name" mapstructure:"channel_name" json:"channelName,omitempty" gorm:"column:channelname" bson:"channelName,omitempty" dynamodbav:"channelName,omitempty" firestore:"channelName,omitempty"`
+	ConnectionName string `yaml:"connection_name" mapstructure:"connection_name" json:"connectionName,omitempty" gorm:"column:connectionname" bson:"connectionName,omitempty" dynamodbav:"connectionName,omitempty" firestore:"connectionName,omitempty"`
+	QueueName      string `yaml:"queue_name" mapstructure:"queue_name" json:"queueName,omitempty" gorm:"column:queuename" bson:"queueName,omitempty" dynamodbav:"queueName,omitempty" firestore:"queueName,omitempty"`
+	WaitInterval   int32  `yaml:"wait_interval" mapstructure:"wait_interval" json:"waitInterval,omitempty" gorm:"column:waitinterval" bson:"waitInterval,omitempty" dynamodbav:"waitInterval,omitempty" firestore:"waitInterval,omitempty"`
+	Topic          string `yaml:"topic" mapstructure:"topic" json:"topic,omitempty" gorm:"column:topic" bson:"topic,omitempty" dynamodbav:"topic,omitempty" firestore:"topic,omitempty"`
+}
 
 type Subscriber struct {
 	QueueManager *ibmmq.MQQueueManager
@@ -13,10 +21,9 @@ type Subscriber struct {
 	WaitInterval int32
 	Topic        string
 	LogError     func(context.Context, string)
-	Convert      func(context.Context, []byte) ([]byte, error)
 }
 
-func NewSubscriberByConfig(c SubscriberConfig, auth MQAuth, convert func(context.Context, []byte) ([]byte, error), options ...func(context.Context, string)) (*Subscriber, error) {
+func NewSubscriberByConfig(c SubscriberConfig, auth MQAuth, logError func(context.Context, string)) (*Subscriber, error) {
 	c2 := QueueConfig{
 		ManagerName:    c.ManagerName,
 		ChannelName:    c.ChannelName,
@@ -27,33 +34,22 @@ func NewSubscriberByConfig(c SubscriberConfig, auth MQAuth, convert func(context
 	if err != nil {
 		return nil, err
 	}
-	return NewSubscriber(mgr, c.QueueName, c.Topic, c.WaitInterval, convert, options...), nil
+	return NewSubscriber(mgr, c.QueueName, c.Topic, c.WaitInterval, logError), nil
 }
-func NewSubscriber(mgr *ibmmq.MQQueueManager, queueName string, topic string, waitInterval int32, convert func(context.Context, []byte) ([]byte, error), options ...func(context.Context, string)) *Subscriber {
-	sd := ibmmq.NewMQSD()
-	sd.Options = ibmmq.MQSO_CREATE |
-		ibmmq.MQSO_NON_DURABLE |
-		ibmmq.MQSO_MANAGED
-
-	sd.ObjectString = queueName
-	return NewSubscriberByMQSD(mgr, queueName, topic, sd, waitInterval, convert, options...)
+func NewSubscriber(mgr *ibmmq.MQQueueManager, topic string, queueName string, waitInterval int32, logError func(context.Context, string)) *Subscriber {
+	return NewSubscriberByMQSD(mgr, queueName, topic, waitInterval, logError)
 }
-func NewSubscriberByMQSD(manager *ibmmq.MQQueueManager, queueName string, topic string, sd *ibmmq.MQSD, waitInterval int32, convert func(context.Context, []byte) ([]byte, error), options ...func(context.Context, string)) *Subscriber {
-	var logError func(context.Context, string)
-	if len(options) > 0 {
-		logError = options[0]
-	}
+func NewSubscriberByMQSD(manager *ibmmq.MQQueueManager, queueName string, topic string, waitInterval int32, logError func(context.Context, string)) *Subscriber {
 	return &Subscriber{
 		QueueManager: manager,
 		QueueName:    queueName,
 		WaitInterval: waitInterval,
 		Topic:        topic,
 		LogError:     logError,
-		Convert:      convert,
 	}
 }
 
-func (c *Subscriber) Subscribe(ctx context.Context, handle func(context.Context, *mq.Message, error) error) {
+func (c *Subscriber) Subscribe(ctx context.Context, handle func(context.Context, []byte)) {
 	// The qObject is filled in with a reference to the queue created automatically
 	// for publications. It will be used in a moment for the Get operations
 	md := ibmmq.NewMQOD()
@@ -84,8 +80,8 @@ func (c *Subscriber) Subscribe(ctx context.Context, handle func(context.Context,
 			// not all platforms behave the same way.
 			gmo.Options = ibmmq.MQGMO_NO_SYNCPOINT
 			// Set options to wait for a maximum of 3 seconds for any new message to arrive
-			gmo.Options |= ibmmq.MQGMO_WAIT // The WaitInterval is in milliseconds
-			gmo.WaitInterval = c.WaitInterval
+			gmo.Options |= ibmmq.MQGMO_WAIT
+			gmo.WaitInterval = c.WaitInterval // The WaitInterval is in milliseconds
 			buffer := make([]byte, 0, 1024)
 			buffer, _, err = qObject.GetSlice(mqmd, gmo, buffer)
 
@@ -93,22 +89,13 @@ func (c *Subscriber) Subscribe(ctx context.Context, handle func(context.Context,
 				msgAvail = false
 				mqReturn := err.(*ibmmq.MQReturn)
 				if mqReturn.MQRC != ibmmq.MQRC_NO_MSG_AVAILABLE {
-					handle(ctx, nil, err)
+					c.LogError(ctx, "Error when subscribe: "+err.Error())
 				} else {
 					err = nil
 				}
 			} else {
 				msgAvail = true
-				msg := mq.Message{Data: buffer}
-				if c.Convert == nil {
-					handle(ctx, &msg, err)
-				} else {
-					data, err := c.Convert(ctx, buffer)
-					if err == nil {
-						msg.Data = data
-					}
-					handle(ctx, &msg, err)
-				}
+				handle(ctx, buffer)
 			}
 		}
 	}
