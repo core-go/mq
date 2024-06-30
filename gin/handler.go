@@ -3,7 +3,7 @@ package handler
 import (
 	"context"
 	"github.com/gin-gonic/gin"
-	"io/ioutil"
+	"io"
 	"net/http"
 )
 
@@ -18,7 +18,7 @@ func NewSenderHandler(response string, send ...func(context.Context, []byte, map
 
 func (h *SenderHandler) Receive(ctx *gin.Context) {
 	r := ctx.Request
-	b, er1 := ioutil.ReadAll(r.Body)
+	b, er1 := io.ReadAll(r.Body)
 	defer r.Body.Close()
 	if er1 != nil {
 		ctx.String(http.StatusBadRequest, er1.Error())

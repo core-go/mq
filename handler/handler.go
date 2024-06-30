@@ -3,7 +3,7 @@ package handler
 import (
 	"context"
 	"encoding/json"
-	"io/ioutil"
+	"io"
 	"net/http"
 )
 
@@ -17,7 +17,7 @@ func NewSenderHandler(response string, send ...func(context.Context, []byte, map
 }
 
 func (h *SenderHandler) Receive(w http.ResponseWriter, r *http.Request) {
-	b, er1 := ioutil.ReadAll(r.Body)
+	b, er1 := io.ReadAll(r.Body)
 	defer r.Body.Close()
 	if er1 != nil {
 		http.Error(w, er1.Error(), http.StatusBadRequest)
