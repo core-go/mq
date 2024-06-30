@@ -27,15 +27,13 @@ func (h *BatchHandler[T]) Handle(ctx context.Context, data []Message[T]) ([]Mess
 			vs = append(vs, message.Value)
 		}
 		failIndices, err := h.Write(ctx, vs)
-		if err != nil {
-			return failMessages, err
-		}
 		sl := len(failIndices)
 		if sl > 0 {
 			for j := 0; j < sl; j++ {
 				failMessages = append(failMessages, data[failIndices[j]])
 			}
 		}
+		return failMessages, err
 	}
 	return failMessages, nil
 }
