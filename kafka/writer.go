@@ -33,18 +33,6 @@ func NewWriterByConfig(c WriterConfig, options ...func() string) (*Writer, error
 	writer := NewKafkaWriter(c.Topic, c.Brokers, dialer)
 	return NewWriter(writer, options...)
 }
-func (p *Writer) Put(ctx context.Context, data []byte, attributes map[string]string) error {
-	return p.Write(ctx, data, attributes)
-}
-func (p *Writer) Send(ctx context.Context, data []byte, attributes map[string]string) error {
-	return p.Write(ctx, data, attributes)
-}
-func (p *Writer) Produce(ctx context.Context, data []byte, attributes map[string]string) error {
-	return p.Write(ctx, data, attributes)
-}
-func (p *Writer) Publish(ctx context.Context, data []byte, attributes map[string]string) error {
-	return p.Write(ctx, data, attributes)
-}
 func (p *Writer) Write(ctx context.Context, data []byte, attributes map[string]string) error {
 	var err error
 	msg := kafka.Message{Value: data}
