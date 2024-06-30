@@ -57,7 +57,7 @@ func (c *Subscriber) Subscribe(ctx context.Context, handle func(context.Context,
 }
 
 func HeaderToMap(header http.Header) map[string]string {
-	attributes := make(map[string]string, 0)
+	attributes := make(map[string]string)
 	for name, values := range header {
 		for _, value := range values {
 			attributes[name] = value

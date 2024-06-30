@@ -66,7 +66,7 @@
 ### Apache Kafka
 - A distributed streaming platform that handles high-throughput, low-latency message processing. It is often used for building real-time data pipelines and streaming applications.
 - We support 3 Kafka GO libraries: [segmentio/kafka-go](https://github.com/core-go/mq/tree/main/kafka), [Shopify/sarama](https://github.com/core-go/mq/tree/main/sarama) and [confluent](https://github.com/core-go/mq/tree/main/confluent).
-- RabbitMQ nodejs library is at [kafka](https://github.com/core-ts/kafka). The sample is at [kafka-sample](https://github.com/typescript-tutorial/kafka-sample)
+- Kafka nodejs library is at [kafka](https://github.com/core-ts/kafka). The sample is at [kafka-sample](https://github.com/typescript-tutorial/kafka-sample)
 ### Amazon SQS (Simple Queue Service)
 - A fully managed message queue service offered by AWS. It provides a reliable, scalable, and cost-effective way to decouple and coordinate distributed software systems and microservices.
 - SQS GO library is at [sqs](https://github.com/core-go/mq/tree/main/sqs). The sample is at [go-subscription](https://github.com/project-samples/go-subscription)

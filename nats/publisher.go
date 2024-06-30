@@ -49,6 +49,13 @@ func (p *Publisher) PublishData(ctx context.Context, data []byte) error {
 	defer p.Conn.Flush()
 	return p.Conn.Publish(p.Subject, data)
 }
+func (p *Publisher) PublishMsg(msg *nats.Msg) error {
+	if msg == nil {
+		return nil
+	}
+	defer p.Conn.Flush()
+	return p.Conn.PublishMsg(msg)
+}
 func MapToHeader(attributes map[string]string) *http.Header {
 	if attributes == nil || len(attributes) == 0 {
 		return nil

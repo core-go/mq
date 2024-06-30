@@ -47,3 +47,7 @@ func (p *SubjectPublisher) PublishData(ctx context.Context, subject string, data
 	defer p.Conn.Flush()
 	return p.Conn.Publish(subject, data)
 }
+func (p *SubjectPublisher) PublishMsg(subject string, data []byte) error {
+	defer p.Conn.Flush()
+	return p.Conn.Publish(subject, data)
+}
