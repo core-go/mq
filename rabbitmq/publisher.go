@@ -11,24 +11,19 @@ type Publisher struct {
 	ExchangeName string
 	Key          string
 	ContentType  string
-	Convert      func(context.Context, []byte) ([]byte, error)
 }
 
-func NewPublisher(channel *amqp.Channel, exchangeName string, key string, contentType string, options...func(context.Context, []byte)([]byte, error)) (*Publisher, error) {
+func NewPublisher(channel *amqp.Channel, exchangeName string, key string, contentType string) (*Publisher, error) {
 	if len(key) == 0 {
 		key = "info"
 	}
 	if len(contentType) == 0 {
 		contentType = "text/plain"
 	}
-	var convert func(context.Context, []byte)([]byte, error)
-	if len(options) > 0 {
-		convert = options[0]
-	}
-	return &Publisher{Channel: channel, ExchangeName: exchangeName, Key: key, ContentType: contentType, Convert: convert}, nil
+	return &Publisher{Channel: channel, ExchangeName: exchangeName, Key: key, ContentType: contentType}, nil
 }
 
-func NewPublisherByConfig(config PublisherConfig, options...func(context.Context, []byte)([]byte, error)) (*Publisher, error) {
+func NewPublisherByConfig(config PublisherConfig) (*Publisher, error) {
 	channel, er1 := NewChannel(config.Url)
 	if er1 != nil {
 		return nil, er1
@@ -37,41 +32,28 @@ func NewPublisherByConfig(config PublisherConfig, options...func(context.Context
 	if er2 != nil {
 		return nil, er2
 	}
-	return NewPublisher(channel, config.ExchangeName, config.Key, config.ContentType, options...)
+	return NewPublisher(channel, config.ExchangeName, config.Key, config.ContentType)
 }
-func (p *Publisher) Put(ctx context.Context, data []byte, attributes map[string]string) (string, error) {
-	return p.Publish(ctx, data, attributes)
-}
-func (p *Publisher) Send(ctx context.Context, data []byte, attributes map[string]string) (string, error) {
-	return p.Publish(ctx, data, attributes)
-}
-func (p *Publisher) Produce(ctx context.Context, data []byte, attributes map[string]string) (string, error) {
-	return p.Publish(ctx, data, attributes)
-}
-func (p *Publisher) Write(ctx context.Context, data []byte, attributes map[string]string) (string, error) {
-	return p.Publish(ctx, data, attributes)
-}
-func (p *Publisher) Publish(ctx context.Context, data []byte, attributes map[string]string) (string, error) {
-	var binary = data
-	var err error
-	if p.Convert != nil {
-		binary, err = p.Convert(ctx, data)
-		if err != nil {
-			return "", err
-		}
-	}
+func (p *Publisher) Publish(ctx context.Context, data []byte, attributes map[string]string) error {
 	opts := MapToTable(attributes)
 	msg := amqp.Publishing{
 		Headers:      opts,
 		DeliveryMode: amqp.Persistent,
 		Timestamp:    time.Now(),
 		ContentType:  p.ContentType,
-		Body:         binary,
+		Body:         data,
 	}
-	err = p.Channel.Publish(p.ExchangeName, p.Key, false, false, msg)
-	return "", err
+	return p.Channel.Publish(p.ExchangeName, p.Key, false, false, msg)
 }
-
+func (p *Publisher) PublishBody(ctx context.Context, data []byte) error {
+	msg := amqp.Publishing{
+		DeliveryMode: amqp.Persistent,
+		Timestamp:    time.Now(),
+		ContentType:  p.ContentType,
+		Body:         data,
+	}
+	return p.Channel.Publish(p.ExchangeName, p.Key, false, false, msg)
+}
 func MapToTable(attributes map[string]string) amqp.Table {
 	opts := amqp.Table{}
 	if attributes != nil {
