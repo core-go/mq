@@ -13,6 +13,7 @@ func NewConn(userName string, password string, addr string) (*stomp.Conn, error)
 		clientID, err := os.Hostname()
 		if err != nil {
 			log.Println("Cannot get hostname", err)
+			return nil, err
 		}
 		options = []func(*stomp.Conn) error{
 			stomp.ConnOpt.Login(userName, password),
@@ -29,6 +30,7 @@ func NewConnWithHeartBeat(userName string, password string, addr string, sendTim
 		clientID, err := os.Hostname()
 		if err != nil {
 			log.Println("Cannot get hostname", err)
+			return nil, err
 		}
 		options = []func(*stomp.Conn) error{
 			stomp.ConnOpt.Login(userName, password),

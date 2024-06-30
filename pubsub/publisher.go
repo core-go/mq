@@ -60,26 +60,6 @@ func ConfigureTopic(topic *pubsub.Topic, c *TopicConfig) *pubsub.Topic {
 	}
 	return topic
 }
-func (p *Publisher) Put(ctx context.Context, data []byte, attributes map[string]string) error {
-	return p.Publish(ctx, data, attributes)
-}
-func (p *Publisher) Send(ctx context.Context, data []byte, attributes map[string]string) error {
-	return p.Publish(ctx, data, attributes)
-}
-func (p *Publisher) Produce(ctx context.Context, data []byte, attributes map[string]string) error {
-	return p.Publish(ctx, data, attributes)
-}
-func (p *Publisher) Write(ctx context.Context, data []byte, attributes map[string]string) error {
-	return p.Publish(ctx, data, attributes)
-}
-func (p *Publisher) PublishData(ctx context.Context, data []byte) error {
-	msg := &pubsub.Message{
-		Data: data,
-	}
-	publishResult := p.Topic.Publish(ctx, msg)
-	_, err := publishResult.Get(ctx)
-	return err
-}
 func (p *Publisher) Publish(ctx context.Context, data []byte, attributes map[string]string) error {
 	msg := &pubsub.Message{Data: data}
 	if attributes != nil {
@@ -89,12 +69,17 @@ func (p *Publisher) Publish(ctx context.Context, data []byte, attributes map[str
 	_, err := publishResult.Get(ctx)
 	return err
 }
+func (p *Publisher) PublishData(ctx context.Context, data []byte) error {
+	msg := &pubsub.Message{Data: data}
+	publishResult := p.Topic.Publish(ctx, msg)
+	_, err := publishResult.Get(ctx)
+	return err
+}
 func (p *Publisher) PublishMessage(ctx context.Context, data []byte, attributes map[string]string) (string, error) {
 	msg := &pubsub.Message{Data: data}
 	if attributes != nil {
 		msg.Attributes = attributes
 	}
-
 	publishResult := p.Topic.Publish(ctx, msg)
 	return publishResult.Get(ctx)
 }

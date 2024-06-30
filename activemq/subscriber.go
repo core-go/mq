@@ -33,7 +33,6 @@ func NewSubscriberByConfig(c Config, ackMode stomp.AckMode, logError func(ctx co
 	}
 	return NewSubscriber(client, c.DestinationName, c.SubscriptionName, ackMode, logError, ackOnConsume)
 }
-
 func (c *Subscriber) SubscribeMessage(ctx context.Context, handle func(context.Context, *stomp.Message)) {
 	for msg := range c.Subscription.C {
 		if msg.Err != nil {
