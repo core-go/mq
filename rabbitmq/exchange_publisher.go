@@ -7,29 +7,24 @@ import (
 	"time"
 )
 
-type SimplePublisher struct {
+type ExchangePublisher struct {
 	Channel      *amqp.Channel
 	ExchangeName string
 	Key          string
 	ContentType  string
-	Convert      func(context.Context, []byte) ([]byte, error)
 }
 
-func NewSimplePublisher(channel *amqp.Channel, exchangeName string, key string, contentType string, options...func(context.Context, []byte)([]byte, error)) (*SimplePublisher, error) {
+func NewExchangePublisher(channel *amqp.Channel, exchangeName string, key string, contentType string) (*ExchangePublisher, error) {
 	if len(key) == 0 {
 		key = "info"
 	}
 	if len(contentType) == 0 {
 		contentType = "text/plain"
 	}
-	var convert func(context.Context, []byte)([]byte, error)
-	if len(options) > 0 {
-		convert = options[0]
-	}
-	return &SimplePublisher{Channel: channel, ExchangeName: exchangeName, Key: key, ContentType: contentType, Convert: convert}, nil
+	return &ExchangePublisher{Channel: channel, ExchangeName: exchangeName, Key: key, ContentType: contentType}, nil
 }
 
-func NewSimplePublisherByConfig(config PublisherConfig, options...func(context.Context, []byte)([]byte, error)) (*SimplePublisher, error) {
+func NewExchangePublisherByConfig(config PublisherConfig) (*ExchangePublisher, error) {
 	channel, er1 := NewChannel(config.Url)
 	if er1 != nil {
 		return nil, er1
@@ -38,43 +33,43 @@ func NewSimplePublisherByConfig(config PublisherConfig, options...func(context.C
 	if er2 != nil {
 		return nil, er2
 	}
-	return NewSimplePublisher(channel, config.ExchangeName, config.Key, config.ContentType, options...)
+	return NewExchangePublisher(channel, config.ExchangeName, config.Key, config.ContentType)
 }
-func (p *SimplePublisher) Put(ctx context.Context, exchangeName string, data []byte, attributes map[string]string) (string, error) {
-	return p.Publish(ctx, exchangeName, data, attributes)
-}
-func (p *SimplePublisher) Send(ctx context.Context, exchangeName string, data []byte, attributes map[string]string) (string, error) {
-	return p.Publish(ctx, exchangeName, data, attributes)
-}
-func (p *SimplePublisher) Write(ctx context.Context, exchangeName string, data []byte, attributes map[string]string) (string, error) {
-	return p.Publish(ctx, exchangeName, data, attributes)
-}
-func (p *SimplePublisher) Produce(ctx context.Context, exchangeName string, data []byte, attributes map[string]string) (string, error) {
-	return p.Publish(ctx, exchangeName, data, attributes)
-}
-func (p *SimplePublisher) Publish(ctx context.Context, exchangeName string, data []byte, attributes map[string]string) (string, error) {
-	var binary = data
-	var err error
-	if p.Convert != nil {
-		binary, err = p.Convert(ctx, data)
-		if err != nil {
-			return "", err
-		}
-	}
+func (p *ExchangePublisher) Publish(ctx context.Context, exchangeName string, data []byte, attributes map[string]string) error {
 	opts := MapToTable(attributes)
 	msg := amqp.Publishing{
 		Headers:      opts,
 		DeliveryMode: amqp.Persistent,
 		Timestamp:    time.Now(),
 		ContentType:  p.ContentType,
-		Body:         binary,
+		Body:         data,
 	}
 	s := strings.Split(exchangeName, "/")
 	if len(s) == 2 {
-		err := p.Channel.Publish(s[0], s[1], false, false, msg)
-		return "", err
+		return p.Channel.Publish(s[0], s[1], false, false, msg)
 	} else {
-		err := p.Channel.Publish(exchangeName, p.Key, false, false, msg)
-		return "", err
+		return p.Channel.Publish(exchangeName, p.Key, false, false, msg)
+	}
+}
+func (p *ExchangePublisher) PublishBody(ctx context.Context, exchangeName string, data []byte) error {
+	msg := amqp.Publishing{
+		DeliveryMode: amqp.Persistent,
+		Timestamp:    time.Now(),
+		ContentType:  p.ContentType,
+		Body:         data,
+	}
+	s := strings.Split(exchangeName, "/")
+	if len(s) == 2 {
+		return p.Channel.Publish(s[0], s[1], false, false, msg)
+	} else {
+		return p.Channel.Publish(exchangeName, p.Key, false, false, msg)
+	}
+}
+func (p *ExchangePublisher) PublishMessage(exchangeName string, msg amqp.Publishing) error {
+	s := strings.Split(exchangeName, "/")
+	if len(s) == 2 {
+		return p.Channel.Publish(s[0], s[1], false, false, msg)
+	} else {
+		return p.Channel.Publish(exchangeName, p.Key, false, false, msg)
 	}
 }

@@ -54,6 +54,9 @@ func (p *Publisher) PublishBody(ctx context.Context, data []byte) error {
 	}
 	return p.Channel.Publish(p.ExchangeName, p.Key, false, false, msg)
 }
+func (p *Publisher) PublishMessage(msg amqp.Publishing) error {
+	return p.Channel.Publish(p.ExchangeName, p.Key, false, false, msg)
+}
 func MapToTable(attributes map[string]string) amqp.Table {
 	opts := amqp.Table{}
 	if attributes != nil {
