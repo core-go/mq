@@ -20,8 +20,11 @@ func NewReader(reader *kafka.Reader, logError func(ctx context.Context, msg stri
 }
 
 func NewReaderByConfig(c ReaderConfig, logError func(ctx context.Context, msg string), ackOnConsume bool) (*Reader, error) {
+	if c.Client.Timeout <= 0 {
+		c.Client.Timeout = 30
+	}
 	dialer := GetDialer(c.Client.Username, c.Client.Password, scram.SHA512, &kafka.Dialer{
-		Timeout:   30 * time.Second,
+		Timeout:   time.Duration(c.Client.Timeout) * time.Second,
 		DualStack: true,
 		TLS:       &tls.Config{},
 	})

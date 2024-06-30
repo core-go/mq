@@ -22,8 +22,11 @@ func NewTopicWriter(writer *kafka.Writer, options ...func() string) (*TopicWrite
 }
 
 func NewTopicWriterByConfig(c WriterConfig, options ...func() string) (*TopicWriter, error) {
+	if c.Client.Timeout <= 0 {
+		c.Client.Timeout = 30
+	}
 	dialer := GetDialer(c.Client.Username, c.Client.Password, scram.SHA512, &kafka.Dialer{
-		Timeout:   30 * time.Second,
+		Timeout:   time.Duration(c.Client.Timeout) * time.Second,
 		DualStack: true,
 		TLS:       &tls.Config{},
 	})

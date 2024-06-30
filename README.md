@@ -1,15 +1,88 @@
 # mq
-![Message Queue](https://camo.githubusercontent.com/31291934a502f50fda6ec65981f77e601efa450f7ef32b3e4bd9041355d68e3e/68747470733a2f2f63646e2d696d616765732d312e6d656469756d2e636f6d2f6d61782f3830302f312a55624b4a753242634159696d385f6f4a67384e7336412e706e67)
+![Message Queue](https://cdn-images-1.medium.com/max/800/1*UbKJu2BcAYim8_oJg8Ns6A.png)
+## Message Queue
+- A message queue is a communication method used in software systems to exchange information between different components or services asynchronously. It provides a way to send messages between producers (senders) and consumers (receivers) without requiring both parties to interact with the message queue at the same time. This decoupling allows for more scalable, reliable, and flexible system architectures.
 
-## Implementations
-Support these message queues:
-- Amazon Simple Queue Service (SQS) at [sqs](https://github.com/core-go/mq/tree/main/sqs)
-- Google Cloud Pub/Sub at [pubsub](https://github.com/core-go/mq/tree/main/pubsub)
-- Kafka: at [segmentio/kafka-go](https://github.com/core-go/mq/tree/main/kafka), [Shopify/sarama](https://github.com/core-go/mq/tree/main/sarama) and [confluent](https://github.com/core-go/mq/tree/main/confluent)
-- NATS at [nats](https://github.com/core-go/mq/tree/main/nats)
-- Active MQ at [activemq](https://github.com/core-go/mq/tree/main/activemq)
-- RabbitMQ at [rabbitmq](https://github.com/core-go/mq/tree/main/rabbitmq)
-- IBM MQ at [ibmmq](https://github.com/core-go/mq/tree/main/ibmmq)
+### Key Concepts of Message Queues
+#### Producers (Publishers/Senders/Writers)
+- The components or services that send messages to the queue.
+#### Consumers (Subscriber/Receivers/Readers)
+- The components or services that receive and process messages from the queue.
+#### Messages
+- The data or payload that is sent by the producer and processed by the consumer. Messages can contain various types of information, such as text, binary data, or structured data like JSON or XML.
+#### Queues
+- Data structures that store messages until they are processed by consumers. Queues typically follow a FIFO (First In, First Out) principle, but other ordering mechanisms can also be implemented
+#### Brokers
+- Middleware components that manage the queues, handle the routing of messages, and ensure reliable delivery.
+- Examples include RabbitMQ, Apache Kafka, Amazon SQS, Google Pub/Sub, NATS, Active MQ and IBM MQ.
+
+### Advantages of Message Queues
+#### Decoupling
+- Producers and consumers do not need to be aware of each other.
+- They can operate independently, allowing for more modular and maintainable systems.
+#### Scalability
+- Enables horizontal scaling by allowing multiple producers and consumers to interact with the queue concurrently.
+#### Reliability
+- Provides mechanisms for ensuring message delivery, such as persistence, acknowledgment, and retries.
+#### Asynchronous Communication
+- Allows systems to handle operations asynchronously, improving responsiveness and efficiency.
+- Producers can send messages without waiting for consumers to process them immediately.
+#### Load Balancing
+- Messages can be distributed across multiple consumers, balancing the load and ensuring efficient processing.
+#### Fault Tolerance
+- Messages can be persisted in the queue, ensuring that they are not lost even if producers or consumers crash. This improves the resilience of the system.
+
+### Use Cases of Message Queues
+#### Microservices Communication
+- Facilitates communication between microservices in a distributed system.
+- For example, an order service can send messages to a payment service and a shipping service.
+
+![Microservice Architecture](https://cdn-images-1.medium.com/max/800/1*vKeePO_UC73i7tfymSmYNA.png)
+- A typical micro service
+
+![A typical micro service](https://cdn-images-1.medium.com/max/800/1*d9kyekAbQYBxH-C6w38XZQ.png)
+
+- A common flow to consume a message from a message queue.
+  ![A common flow to consume a message from a message queue](https://cdn-images-1.medium.com/max/800/1*Y4QUN6QnfmJgaKigcNHbQA.png)
+  - The sample is at [project-samples/go-subscription](https://github.com/project-samples/go-subscription)
+#### Task Queues
+- Managing background tasks and job processing.
+- For example, a web application can offload time-consuming tasks like image processing or email sending to a message queue.
+#### Event-Driven Architectures
+- Implementing event-driven systems where different components react to events.
+- For example, a user registration event can trigger notifications, welcome emails, and analytics updates.
+#### Data Pipelines
+- Managing data flow in big data applications.
+- For example, log data from various sources can be collected, processed, and analyzed using a message queue.
+#### Decoupling Frontend and Backend
+- Frontend applications can send messages to a queue, which are then processed by backend services.
+- This improves responsiveness and allows for better handling of varying load conditions.
+
+## Message Queue Implementations
+### RabbitMQ
+- An open-source message broker that supports multiple messaging protocols. It provides features like message routing, persistence, and acknowledgment.
+- RabbitMQ GO library is at [mq/rabbitmq](https://github.com/core-go/mq/tree/main/rabbitmq). The sample is at [go-subscription](https://github.com/project-samples/go-subscription)
+- RabbitMQ nodejs library is at [rabbitmq](https://github.com/core-ts/rabbitmq). The sample is at [rabbitmq-sample](https://github.com/typescript-tutorial/rabbitmq-sample) 
+### Apache Kafka
+- A distributed streaming platform that handles high-throughput, low-latency message processing. It is often used for building real-time data pipelines and streaming applications.
+- We support 3 Kafka GO libraries: [segmentio/kafka-go](https://github.com/core-go/mq/tree/main/kafka), [Shopify/sarama](https://github.com/core-go/mq/tree/main/sarama) and [confluent](https://github.com/core-go/mq/tree/main/confluent).
+- RabbitMQ nodejs library is at [kafka](https://github.com/core-ts/kafka). The sample is at [kafka-sample](https://github.com/typescript-tutorial/kafka-sample)
+### Amazon SQS (Simple Queue Service)
+- A fully managed message queue service offered by AWS. It provides a reliable, scalable, and cost-effective way to decouple and coordinate distributed software systems and microservices.
+- SQS GO library is at [sqs](https://github.com/core-go/mq/tree/main/sqs). The sample is at [go-subscription](https://github.com/project-samples/go-subscription)
+### Google Cloud Pub/Sub
+- A fully managed messaging service that allows for event-driven systems and real-time analytics on Google Cloud Platform.
+- Pub/Sub GO library is at [pubsub](https://github.com/core-go/mq/tree/main/pubsub). The sample is at [go-subscription](https://github.com/project-samples/go-subscription)
+- Pub/Sub nodejs library is at [pubsub](https://github.com/core-ts/pubsub). The sample is at [pubsub-sample](https://github.com/typescript-tutorial/pubsub-sample)
+### IBM MQ
+- IBM MQ at [ibmmq](https://github.com/core-go/mq/tree/main/ibmmq). The sample is at [go-subscription](https://github.com/project-samples/go-subscription)
+- IBM MQ nodejs library is at [IBM MQ](https://github.com/core-ts/ibmmq). The sample is at [ibmmq-sample](https://github.com/typescript-tutorial/ibmmq-sample)
+### Active MQ
+- Active MQ at [activemq](https://github.com/core-go/mq/tree/main/activemq). The sample is at [go-subscription](https://github.com/project-samples/go-subscription)
+- Active MQ nodejs library is at [Active MQ](https://github.com/core-ts/activemq). The sample is at [activemq-sample](https://github.com/typescript-tutorial/activemq-sample)
+### NATS
+- NATS at [nats](https://github.com/core-go/mq/tree/main/nats). The sample is at [go-subscription](https://github.com/project-samples/go-subscription)
+- NATS nodejs library is at [NATS](https://github.com/core-ts/nats). The sample is at [nats-sample](https://github.com/typescript-tutorial/nats-sample)
 
 ## Installation
 Please make sure to initialize a Go module before installing core-go/mq:
@@ -27,16 +100,3 @@ Build for confluent:
 ```go
 go build -buildmode=exe main.go
 ```
-
-### Flow to consume a message from a queue
-![Flow to consume a message](https://camo.githubusercontent.com/782bbf69a516401c3918b7e920d8fc25521112d8b04e890f2455768551f6d64e/68747470733a2f2f63646e2d696d616765732d312e6d656469756d2e636f6d2f6d61782f3830302f312a593451554e36516e666d4a67614b6967634e486251412e706e67)
-- Consume a message from queue, then write the message to database (SQL, Mongo, Casandra, Dynamodb, Firestore, Elasticsearch)
-- Support these databases
-    - SQL
-    - Mongo
-    - Casandra
-    - Dynamodb
-    - Firestore
-    - Elasticsearch
-#### The sample is [go-subscription]
-- Another sample to consume message and handle by batch is [go-batch-subscription](https://github.com/project-samples/go-batch-subscription)

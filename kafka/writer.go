@@ -9,21 +9,24 @@ import (
 )
 
 type Writer struct {
-	Writer *kafka.Writer
-	Generate func()string
+	Writer   *kafka.Writer
+	Generate func() string
 }
 
-func NewWriter(writer *kafka.Writer, options...func()string) (*Writer, error) {
-	var generate func()string
+func NewWriter(writer *kafka.Writer, options ...func() string) (*Writer, error) {
+	var generate func() string
 	if len(options) > 0 {
 		generate = options[0]
 	}
 	return &Writer{Writer: writer, Generate: generate}, nil
 }
 
-func NewWriterByConfig(c WriterConfig, options...func()string) (*Writer, error) {
+func NewWriterByConfig(c WriterConfig, options ...func() string) (*Writer, error) {
+	if c.Client.Timeout <= 0 {
+		c.Client.Timeout = 30
+	}
 	dialer := GetDialer(c.Client.Username, c.Client.Password, scram.SHA512, &kafka.Dialer{
-		Timeout:   30 * time.Second,
+		Timeout:   time.Duration(c.Client.Timeout) * time.Second,
 		DualStack: true,
 		TLS:       &tls.Config{},
 	})
