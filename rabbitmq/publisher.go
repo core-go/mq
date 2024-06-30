@@ -2,8 +2,9 @@ package rabbitmq
 
 import (
 	"context"
-	"github.com/streadway/amqp"
 	"time"
+
+	amqp "github.com/rabbitmq/amqp091-go"
 )
 
 type Publisher struct {

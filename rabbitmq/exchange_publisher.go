@@ -2,9 +2,10 @@ package rabbitmq
 
 import (
 	"context"
-	"github.com/streadway/amqp"
 	"strings"
 	"time"
+
+	amqp "github.com/rabbitmq/amqp091-go"
 )
 
 type ExchangePublisher struct {
