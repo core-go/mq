@@ -8,7 +8,7 @@ import (
 	"time"
 )
 
-type ServerConf struct {
+type ServerConfig struct {
 	Name              string `mapstructure:"name" json:"name,omitempty" gorm:"column:name" bson:"name,omitempty" dynamodbav:"name,omitempty" firestore:"name,omitempty"`
 	Version           string `mapstructure:"version" json:"version,omitempty" gorm:"column:version" bson:"version,omitempty" dynamodbav:"version,omitempty" firestore:"version,omitempty"`
 	Port              *int64 `mapstructure:"port" json:"port,omitempty" gorm:"column:port" bson:"port,omitempty" dynamodbav:"port,omitempty" firestore:"port,omitempty"`
@@ -26,7 +26,7 @@ func Addr(port *int64) string {
 	}
 	return server
 }
-func ServerInfo(conf ServerConf) string {
+func ServerInfo(conf ServerConfig) string {
 	if len(conf.Version) > 0 {
 		if conf.Port != nil && *conf.Port >= 0 {
 			return "Start service: " + conf.Name + " at port " + strconv.FormatInt(*conf.Port, 10) + " with version " + conf.Version
@@ -41,7 +41,7 @@ func ServerInfo(conf ServerConf) string {
 		}
 	}
 }
-func Serve(conf ServerConf, check func(w http.ResponseWriter, r *http.Request), options ...*tls.Config) {
+func Serve(conf ServerConfig, check func(w http.ResponseWriter, r *http.Request), options ...*tls.Config) {
 	log.Println(ServerInfo(conf))
 	http.HandleFunc("/health", check)
 	http.HandleFunc("/", check)
@@ -52,7 +52,7 @@ func Serve(conf ServerConf, check func(w http.ResponseWriter, r *http.Request), 
 		panic(err)
 	}
 }
-func CreateServer(conf ServerConf, handler http.Handler, options ...*tls.Config) *http.Server {
+func CreateServer(conf ServerConfig, handler http.Handler, options ...*tls.Config) *http.Server {
 	addr := Addr(conf.Port)
 	srv := http.Server{
 		Addr:      addr,

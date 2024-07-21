@@ -5,7 +5,7 @@ import (
 	"crypto/x509"
 	"errors"
 	"github.com/IBM/sarama"
-	"io/ioutil"
+	"io"
 	"log"
 )
 
@@ -91,7 +91,7 @@ func CreateTLSConfig(c TLSConfig) (t *tls.Config) {
 		if err != nil {
 			log.Fatalf("%v", err)
 		}
-		caCert, err := ioutil.ReadFile(c.CaFile)
+		caCert, err := io.ReadFile(c.CaFile)
 		if err != nil {
 			log.Fatalf("%v", err)
 		}

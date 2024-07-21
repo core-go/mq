@@ -3,9 +3,9 @@ package subscriber
 import "context"
 
 type Subscriber struct {
-	Subscribe func(ctx context.Context, handle func(ctx context.Context, data []byte, header map[string]string, err error) error)
-	Handle func(ctx context.Context, data []byte, header map[string]string, err error) error
+	Subscribe func(ctx context.Context, handle func(context.Context, []byte, map[string]string))
+	Handle    func(context.Context, []byte, map[string]string)
 }
 
-type Handle func(ctx context.Context, data []byte, header map[string]string, err error) error
-type Subscribe func(ctx context.Context, handle func(ctx context.Context, data []byte, header map[string]string, err error) error)
+type Handle func(context.Context, []byte, map[string]string)
+type Subscribe func(context.Context, func(context.Context, []byte, map[string]string))
