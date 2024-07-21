@@ -16,6 +16,33 @@
 - Middleware components that manage the queues, handle the routing of messages, and ensure reliable delivery.
 - Examples include RabbitMQ, Apache Kafka, Amazon SQS, Google Pub/Sub, NATS, Active MQ and IBM MQ.
 
+## Message Queue Implementations
+### RabbitMQ
+- An open-source message broker that supports multiple messaging protocols. It provides features like message routing, persistence, and acknowledgment.
+- RabbitMQ GO library is at [rabbitmq](https://github.com/core-go/rabbitmq). The sample is at [go-rabbit-mq-sample](https://github.com/project-samples/go-rabbit-mq-sample)
+- RabbitMQ nodejs library is at [rabbitmq-ext](https://www.npmjs.com/package/rabbitmq-ext). The sample is at [rabbitmq-sample](https://github.com/typescript-tutorial/rabbitmq-sample)
+### Apache Kafka
+- A distributed streaming platform that handles high-throughput, low-latency message processing. It is often used for building real-time data pipelines and streaming applications.
+- We support 3 Kafka GO libraries: [segmentio/kafka-go](https://github.com/core-go/mq/tree/main/kafka), [Shopify/sarama](https://github.com/core-go/mq/tree/main/sarama) and [confluent](https://github.com/core-go/mq/tree/main/confluent).
+- Kafka GO library is at [kafka](https://github.com/core-go/kafka). The sample is at [go-kafka-sample](https://github.com/project-samples/go-kafka-sample)
+- Kafka nodejs library is at [kafka](https://github.com/core-ts/kafka). The sample is at [kafka-sample](https://github.com/typescript-tutorial/kafka-sample)
+### Amazon SQS (Simple Queue Service)
+- A fully managed message queue service offered by AWS. It provides a reliable, scalable, and cost-effective way to decouple and coordinate distributed software systems and microservices.
+- SQS GO library is at [sqs](https://github.com/core-go/sqs). The sample is at [go-amazon-sqs-sample](https://github.com/project-samples/go-amazon-sqs-sample)
+### Google Cloud Pub/Sub
+- A fully managed messaging service that allows for event-driven systems and real-time analytics on Google Cloud Platform.
+- Pub/Sub GO library is at [pubsub](https://github.com/core-go/pubsub). The sample is at [go-pubsub-sample](https://github.com/project-samples/go-pubsub-sample)
+- Pub/Sub nodejs library is at [google-pubsub](https://www.npmjs.com/package/google-pubsub). The sample is at [pubsub-sample](https://github.com/typescript-tutorial/pubsub-sample)
+### IBM MQ
+- IBM MQ at [ibmmq](https://github.com/core-go/ibmmq). The sample is at [go-ibm-mq-sample](https://github.com/project-samples/go-ibm-mq-sample)
+- IBM MQ nodejs library is at [ibmmq-plus](https://github.com/core-ts/ibmmq). The sample is at [ibmmq-sample](https://github.com/typescript-tutorial/ibmmq-sample)
+### Active MQ
+- Active MQ at [activemq](https://github.com/core-go/activemq). The sample is at [go-active-mq-sample](https://github.com/project-samples/go-active-mq-sample)
+- Active MQ nodejs library is at [activemq](https://www.npmjs.com/package/activemq). The sample is at [activemq-sample](https://github.com/typescript-tutorial/activemq-sample)
+### NATS
+- NATS at [nats](https://github.com/core-go/nats). The sample is at [go-nats-sample](https://github.com/project-samples/go-nats-sample)
+- NATS nodejs library is at [NATS](https://www.npmjs.com/package/nats-plus). The sample is at [nats-sample](https://github.com/typescript-tutorial/nats-sample)
+
 ### Advantages of Message Queues
 #### Decoupling
 - Producers and consumers do not need to be aware of each other.
@@ -44,7 +71,7 @@
 
 - A common flow to consume a message from a message queue.
   ![A common flow to consume a message from a message queue](https://cdn-images-1.medium.com/max/800/1*Y4QUN6QnfmJgaKigcNHbQA.png)
-  - The sample is at [project-samples/go-subscription](https://github.com/project-samples/go-subscription)
+  - The sample is at [go-kafka-sample](https://github.com/project-samples/go-kafka-sample)
 #### Task Queues
 - Managing background tasks and job processing.
 - For example, a web application can offload time-consuming tasks like image processing or email sending to a message queue.
@@ -57,32 +84,6 @@
 #### Decoupling Frontend and Backend
 - Frontend applications can send messages to a queue, which are then processed by backend services.
 - This improves responsiveness and allows for better handling of varying load conditions.
-
-## Message Queue Implementations
-### RabbitMQ
-- An open-source message broker that supports multiple messaging protocols. It provides features like message routing, persistence, and acknowledgment.
-- RabbitMQ GO library is at [rabbitmq](https://github.com/core-go/rabbitmq). The sample is at [go-rabbit-mq-sample](https://github.com/project-samples/go-rabbit-mq-sample)
-- RabbitMQ nodejs library is at [rabbitmq-ext](https://www.npmjs.com/package/rabbitmq-ext). The sample is at [rabbitmq-sample](https://github.com/typescript-tutorial/rabbitmq-sample) 
-### Apache Kafka
-- A distributed streaming platform that handles high-throughput, low-latency message processing. It is often used for building real-time data pipelines and streaming applications.
-- We support 3 Kafka GO libraries: [segmentio/kafka-go](https://github.com/core-go/mq/tree/main/kafka), [Shopify/sarama](https://github.com/core-go/mq/tree/main/sarama) and [confluent](https://github.com/core-go/mq/tree/main/confluent).
-- Kafka nodejs library is at [kafka](https://github.com/core-ts/kafka). The sample is at [kafka-sample](https://github.com/typescript-tutorial/kafka-sample)
-### Amazon SQS (Simple Queue Service)
-- A fully managed message queue service offered by AWS. It provides a reliable, scalable, and cost-effective way to decouple and coordinate distributed software systems and microservices.
-- SQS GO library is at [sqs](https://github.com/core-go/sqs). The sample is at [go-amazon-sqs-sample](https://github.com/project-samples/go-amazon-sqs-sample)
-### Google Cloud Pub/Sub
-- A fully managed messaging service that allows for event-driven systems and real-time analytics on Google Cloud Platform.
-- Pub/Sub GO library is at [pubsub](https://github.com/core-go/pubsub). The sample is at [go-pubsub-sample](https://github.com/project-samples/go-pubsub-sample)
-- Pub/Sub nodejs library is at [google-pubsub](https://www.npmjs.com/package/google-pubsub). The sample is at [pubsub-sample](https://github.com/typescript-tutorial/pubsub-sample)
-### IBM MQ
-- IBM MQ at [ibmmq](https://github.com/core-go/ibmmq). The sample is at [go-ibm-mq-sample](https://github.com/project-samples/go-ibm-mq-sample)
-- IBM MQ nodejs library is at [ibmmq-plus](https://github.com/core-ts/ibmmq). The sample is at [ibmmq-sample](https://github.com/typescript-tutorial/ibmmq-sample)
-### Active MQ
-- Active MQ at [activemq](https://github.com/core-go/activemq). The sample is at [go-active-mq-sample](https://github.com/project-samples/go-active-mq-sample)
-- Active MQ nodejs library is at [activemq](https://www.npmjs.com/package/activemq). The sample is at [activemq-sample](https://github.com/typescript-tutorial/activemq-sample)
-### NATS
-- NATS at [nats](https://github.com/core-go/nats). The sample is at [go-nats-sample](https://github.com/project-samples/go-nats-sample)
-- NATS nodejs library is at [NATS](https://www.npmjs.com/package/nats-plus). The sample is at [nats-sample](https://github.com/typescript-tutorial/nats-sample)
 
 ## Installation
 Please make sure to initialize a Go module before installing core-go/mq:
