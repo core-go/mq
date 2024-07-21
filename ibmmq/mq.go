@@ -2,11 +2,12 @@ package ibmmq
 
 import (
 	"fmt"
-	"github.com/ibm-messaging/mq-golang/v5/ibmmq"
 	"log"
 	"reflect"
 	"strconv"
 	"time"
+
+	"github.com/ibm-messaging/mq-golang/v5/ibmmq"
 )
 
 type MQAuth struct {

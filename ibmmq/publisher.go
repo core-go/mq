@@ -2,6 +2,7 @@ package ibmmq
 
 import (
 	"context"
+
 	"github.com/ibm-messaging/mq-golang/v5/ibmmq"
 )
 

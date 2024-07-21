@@ -2,8 +2,9 @@ package ibmmq
 
 import (
 	"context"
-	"github.com/ibm-messaging/mq-golang/v5/ibmmq"
 	"time"
+
+	"github.com/ibm-messaging/mq-golang/v5/ibmmq"
 )
 
 type HealthChecker struct {
