@@ -30,8 +30,8 @@ func NewHandlerByConfig[T any](c HandlerConfig,
 	validate func(context.Context, *T) ([]ErrorMessage, error),
 	reject func(context.Context, *T, []ErrorMessage, []byte),
 	handleError func(context.Context, []byte),
-	goroutines bool, key string, logs ...func(context.Context, string)) *Handler[T] {
-	return NewHandlerByConfigAndUnmarshal[T](c, nil, write, validate, reject, handleError, goroutines, key, logs...)
+	logs ...func(context.Context, string)) *Handler[T] {
+	return NewHandlerByConfigAndUnmarshal[T](c, nil, write, validate, reject, handleError, logs...)
 }
 func NewHandlerByConfigAndUnmarshal[T any](c HandlerConfig,
 	unmarshal func(data []byte, v any) error,
@@ -39,7 +39,7 @@ func NewHandlerByConfigAndUnmarshal[T any](c HandlerConfig,
 	validate func(context.Context, *T) ([]ErrorMessage, error),
 	reject func(context.Context, *T, []ErrorMessage, []byte),
 	handleError func(context.Context, []byte),
-	goroutines bool, key string, logs ...func(context.Context, string)) *Handler[T] {
+	logs ...func(context.Context, string)) *Handler[T] {
 	if c.Retry == nil {
 		return NewHandlerWithKey[T](unmarshal, write, validate, reject, handleError, nil, c.Goroutines, c.Key, logs...)
 	} else {
