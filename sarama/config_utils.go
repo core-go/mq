@@ -4,14 +4,13 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"errors"
-	"github.com/Shopify/sarama"
+	"github.com/IBM/sarama"
 	"io/ioutil"
 	"log"
 )
 
 func GetConfig(brokers []string, algorithm *string, config *ClientConfig, conf sarama.Config) (*sarama.Config, error) {
 	if len(brokers) == 0 {
-		log.Fatalln("at least one broker is required")
 		return nil, errors.New("at least one broker is required")
 	}
 	conf.Producer.Retry.Max = 1
@@ -100,8 +99,8 @@ func CreateTLSConfig(c TLSConfig) (t *tls.Config) {
 		caCertPool.AppendCertsFromPEM(caCert)
 
 		t = &tls.Config{
-			Certificates:       []tls.Certificate{cert},
-			RootCAs:            caCertPool,
+			Certificates: []tls.Certificate{cert},
+			RootCAs:      caCertPool,
 		}
 	}
 	if c.InsecureSkipVerify != nil {
