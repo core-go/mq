@@ -7,11 +7,11 @@ import (
 	"reflect"
 )
 
-type Inserter struct {
+type Inserter[T any] struct {
 	db           *sql.DB
 	tableName    string
 	BuildParam   func(i int) string
-	Map          func(ctx context.Context, model interface{}) (interface{}, error)
+	Map          func(T)
 	BoolSupport  bool
 	VersionIndex int
 	schema       *Schema
@@ -21,27 +21,32 @@ type Inserter struct {
 	}
 }
 
-func NewInserter(db *sql.DB, tableName string, modelType reflect.Type, options ...func(context.Context, interface{}) (interface{}, error)) *Inserter {
-	var mp func(context.Context, interface{}) (interface{}, error)
+func NewInserter[T any](db *sql.DB, tableName string, options ...func(T)) *Inserter[T] {
+	var mp func(T)
 	if len(options) >= 1 {
 		mp = options[0]
 	}
-	return NewSqlInserter(db, tableName, modelType, mp, nil)
+	return NewSqlInserter[T](db, tableName, mp, nil)
 }
-func NewInserterWithArray(db *sql.DB, tableName string, modelType reflect.Type, toArray func(interface{}) interface {
+func NewInserterWithArray[T any](db *sql.DB, tableName string, toArray func(interface{}) interface {
 	driver.Valuer
 	sql.Scanner
-}, options ...func(context.Context, interface{}) (interface{}, error)) *Inserter {
-	var mp func(context.Context, interface{}) (interface{}, error)
+}, options ...func(T)) *Inserter[T] {
+	var mp func(T)
 	if len(options) >= 1 {
 		mp = options[0]
 	}
-	return NewSqlInserter(db, tableName, modelType, mp, toArray)
+	return NewSqlInserter[T](db, tableName, mp, toArray)
 }
-func NewSqlInserter(db *sql.DB, tableName string, modelType reflect.Type, mp func(context.Context, interface{}) (interface{}, error), toArray func(interface{}) interface {
+func NewSqlInserter[T any](db *sql.DB, tableName string, mp func(T), toArray func(interface{}) interface {
 	driver.Valuer
 	sql.Scanner
-}, options ...func(i int) string) *Inserter {
+}, options ...func(i int) string) *Inserter[T] {
+	var t T
+	modelType := reflect.TypeOf(t)
+	if modelType.Kind() == reflect.Ptr {
+		modelType = modelType.Elem()
+	}
 	var buildParam func(i int) string
 	if len(options) > 0 && options[0] != nil {
 		buildParam = options[0]
@@ -51,19 +56,12 @@ func NewSqlInserter(db *sql.DB, tableName string, modelType reflect.Type, mp fun
 	driver := GetDriver(db)
 	boolSupport := driver == DriverPostgres
 	schema := CreateSchema(modelType)
-	return &Inserter{db: db, BoolSupport: boolSupport, VersionIndex: -1, schema: schema, tableName: tableName, BuildParam: buildParam, Map: mp, ToArray: toArray}
+	return &Inserter[T]{db: db, BoolSupport: boolSupport, VersionIndex: -1, schema: schema, tableName: tableName, BuildParam: buildParam, Map: mp, ToArray: toArray}
 }
 
-func (w *Inserter) Write(ctx context.Context, model interface{}) error {
+func (w *Inserter[T]) Write(ctx context.Context, model T) error {
 	if w.Map != nil {
-		m2, er0 := w.Map(ctx, model)
-		if er0 != nil {
-			return er0
-		}
-
-		queryInsert, values := BuildToInsertWithSchema(w.tableName, m2, w.VersionIndex, w.BuildParam, w.BoolSupport, false, w.ToArray, w.schema)
-		_, err := w.db.ExecContext(ctx, queryInsert, values...)
-		return err
+		w.Map(model)
 	}
 	queryInsert, values := BuildToInsertWithSchema(w.tableName, model, w.VersionIndex, w.BuildParam, w.BoolSupport, false, w.ToArray, w.schema)
 	_, err := w.db.ExecContext(ctx, queryInsert, values...)

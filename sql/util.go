@@ -9,6 +9,8 @@ import (
 	"strings"
 )
 
+const IgnoreReadWrite = "-"
+
 type FieldDB struct {
 	JSON   string
 	Column string
@@ -28,8 +30,6 @@ type Schema struct {
 	Columns  []*FieldDB
 	Fields   map[string]*FieldDB
 }
-
-const IgnoreReadWrite = "-"
 
 func CreateSchema(modelType reflect.Type) *Schema {
 	m := modelType
@@ -104,6 +104,7 @@ func CreateSchema(modelType reflect.Type) *Schema {
 	s := &Schema{SColumns: scolumns, SKeys: skeys, Columns: columns, Keys: keys, Fields: schema}
 	return s
 }
+
 func GetDBValue(v interface{}, boolSupport bool, scale int8) (string, bool) {
 	switch v.(type) {
 	case string:
@@ -200,6 +201,10 @@ func GetDBValue(v interface{}, boolSupport bool, scale int8) (string, bool) {
 }
 func Round(num big.Float, scale int) big.Float {
 	marshal, _ := num.MarshalText()
+	if strings.IndexRune(string(marshal), '.') == -1 {
+		return num
+	}
+	fmt.Println(marshal)
 	var dot int
 	for i, v := range marshal {
 		if v == 46 {

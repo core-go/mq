@@ -8,52 +8,6 @@ import (
 	"strings"
 )
 
-type Statement struct {
-	Query  string        `mapstructure:"query" json:"query,omitempty" gorm:"column:query" bson:"query,omitempty" dynamodbav:"query,omitempty" firestore:"query,omitempty"`
-	Params []interface{} `mapstructure:"params" json:"params,omitempty" gorm:"column:params" bson:"params,omitempty" dynamodbav:"params,omitempty" firestore:"params,omitempty"`
-}
-func BuildInsertStatementsWithVersion(table string, models interface{}, versionIndex int, buildParam func(int) string, boolSupport bool, toArray func(interface{}) interface {
-	driver.Valuer
-	sql.Scanner
-}, includeNull bool, options ...*Schema) ([]Statement, error) {
-	s := reflect.Indirect(reflect.ValueOf(models))
-	if s.Kind() != reflect.Slice {
-		return nil, fmt.Errorf("models must be a slice")
-	}
-	if s.Len() <= 0 {
-		return nil, nil
-	}
-	var strt *Schema
-	if len(options) > 0 && options[0] != nil {
-		strt = options[0]
-	} else {
-		first := s.Index(0).Interface()
-		modelType := reflect.TypeOf(first)
-		strt = CreateSchema(modelType)
-	}
-	slen := s.Len()
-	stmts := make([]Statement, 0)
-	for j := 0; j < slen; j++ {
-		model := s.Index(j).Interface()
-		// mv := reflect.ValueOf(model)
-		query, args := BuildToInsertWithSchema(table, model, versionIndex, buildParam, boolSupport, includeNull, toArray, strt)
-		s := Statement{Query: query, Params: args}
-		stmts = append(stmts, s)
-	}
-	return stmts, nil
-}
-func BuildInsertStatementsWithArray(table string, models interface{}, buildParam func(int) string, boolSupport bool, toArray func(interface{}) interface {
-	driver.Valuer
-	sql.Scanner
-}, options ...*Schema) ([]Statement, error) {
-	return BuildInsertStatementsWithVersion(table, models, -1, buildParam, boolSupport, toArray, false, options...)
-}
-func BuildInsertStatementsWithBool(table string, models interface{}, buildParam func(int) string, boolSupport bool, options ...*Schema) ([]Statement, error) {
-	return BuildInsertStatementsWithVersion(table, models, -1, buildParam, boolSupport, nil, false, options...)
-}
-func BuildInsertStatements(table string, models interface{}, buildParam func(int) string, options ...*Schema) ([]Statement, error) {
-	return BuildInsertStatementsWithVersion(table, models, -1, buildParam, false, nil, false, options...)
-}
 func BuildToUpdateBatch(table string, models interface{}, buildParam func(int) string, options ...*Schema) ([]Statement, error) {
 	return BuildToUpdateBatchWithVersion(table, models, -1, buildParam, false, nil, options...)
 }
@@ -147,6 +101,9 @@ func BuildToInsertBatchWithSchema(table string, models interface{}, driver strin
 		for j := 0; j < slen; j++ {
 			model := s.Index(j).Interface()
 			mv := reflect.ValueOf(model)
+			if mv.Kind() == reflect.Ptr {
+				mv = mv.Elem()
+			}
 			values := make([]string, 0)
 			for _, fdb := range cols {
 				if fdb.Insert {
@@ -302,23 +259,4 @@ func BuildToSaveBatchWithArray(table string, models interface{}, drive string, t
 		stmts = append(stmts, s)
 	}
 	return stmts, nil
-}
-
-func InterfaceSlice(slice interface{}) ([]interface{}, error) {
-	s := reflect.Indirect(reflect.ValueOf(slice))
-	if s.Kind() != reflect.Slice {
-		return nil, fmt.Errorf("InterfaceSlice() given a non-slice type")
-	}
-	ret := make([]interface{}, s.Len())
-
-	for i := 0; i < s.Len(); i++ {
-		ret[i] = s.Index(i).Interface()
-	}
-	return ret, nil
-}
-func ToArrayIndex(value reflect.Value, indices []int) []int {
-	for i := 0; i < value.Len(); i++ {
-		indices = append(indices, i)
-	}
-	return indices
 }

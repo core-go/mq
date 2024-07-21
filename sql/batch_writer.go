@@ -4,67 +4,91 @@ import (
 	"context"
 	"database/sql"
 	"database/sql/driver"
+	"fmt"
 	"reflect"
 )
 
-type BatchWriter struct {
-	db           *sql.DB
-	tableName    string
-	Map          func(ctx context.Context, model interface{}) (interface{}, error)
-	Schema       *Schema
-	ToArray      func(interface{}) interface {
+type BatchWriter[T any] struct {
+	db        *sql.DB
+	tableName string
+	Map       func(*T)
+	Driver    string
+	Schema    *Schema
+	ToArray   func(interface{}) interface {
 		driver.Valuer
 		sql.Scanner
 	}
+	retryAll bool
 }
-func NewBatchWriter(db *sql.DB, tableName string, modelType reflect.Type, options ...func(context.Context, interface{}) (interface{}, error)) *BatchWriter {
-	var mp func(context.Context, interface{}) (interface{}, error)
+
+func NewBatchWriter[T any](db *sql.DB, tableName string, retryAll bool, options ...func(*T)) *BatchWriter[T] {
+	var mp func(*T)
 	if len(options) > 0 && options[0] != nil {
 		mp = options[0]
 	}
-	return NewBatchWriterWithMap(db, tableName, modelType, mp, nil)
+	return NewBatchWriterWithArray[T](db, tableName, retryAll, nil, mp)
 }
-func NewBatchWriterWithMap(db *sql.DB, tableName string, modelType reflect.Type, mp func(context.Context, interface{}) (interface{}, error), options... func(interface{}) interface {
+func NewBatchWriterWithArray[T any](db *sql.DB, tableName string, retryAll bool, toArray func(interface{}) interface {
 	driver.Valuer
 	sql.Scanner
-}) *BatchWriter {
-	var toArray func(interface{}) interface {
-		driver.Valuer
-		sql.Scanner
+}, options ...func(*T)) *BatchWriter[T] {
+	var t T
+	modelType := reflect.TypeOf(t)
+	if modelType.Kind() != reflect.Struct {
+		panic("T must be a struct")
 	}
-	if len(options) > 0 {
-		toArray = options[0]
+	driver := GetDriver(db)
+	var mp func(*T)
+	if len(options) > 0 && options[0] != nil {
+		mp = options[0]
 	}
 	schema := CreateSchema(modelType)
-	return &BatchWriter{db: db, tableName: tableName, Schema: schema, Map: mp, ToArray: toArray}
+	if len(schema.Keys) <= 0 {
+		panic(fmt.Sprintf("require primary key for table '%s'", tableName))
+	}
+	return &BatchWriter[T]{db: db, tableName: tableName, Schema: schema, Driver: driver, Map: mp, ToArray: toArray, retryAll: retryAll}
 }
 
-func (w *BatchWriter) Write(ctx context.Context, models interface{}) ([]int, []int, error) {
-	successIndices := make([]int, 0)
-	failIndices := make([]int, 0)
-	var models2 interface{}
-	var er0 error
+func (w *BatchWriter[T]) Write(ctx context.Context, models []T) ([]int, error) {
+	l := len(models)
+	if l == 0 {
+		return nil, nil
+	}
 	if w.Map != nil {
-		models2, er0 = MapModels(ctx, models, w.Map)
-		if er0 != nil {
-			s0 := reflect.ValueOf(models2)
-			_, er0b := InterfaceSlice(models2)
-			failIndices = ToArrayIndex(s0, failIndices)
-			return successIndices, failIndices, er0b
+		for i := 0; i < l; i++ {
+			w.Map(&models[i])
 		}
-	} else {
-		models2 = models
 	}
-	s := reflect.ValueOf(models2)
-	_, er2 := SaveBatchWithArray(ctx, w.db, w.tableName, models2, w.ToArray)
+	var queryArgsArray []Statement
+	for _, v := range models {
+		query, args, err := BuildToSaveWithArray(w.tableName, v, w.Driver, w.ToArray, w.Schema)
+		if err != nil {
+			return nil, err
+		}
+		queryArgs := Statement{
+			Query:  query,
+			Params: args,
+		}
+		queryArgsArray = append(queryArgsArray, queryArgs)
+	}
 
-	if er2 == nil {
-		// Return full success
-		successIndices = ToArrayIndex(s, successIndices)
-		return successIndices, failIndices, er2
-	} else {
-		// Return full fail
-		failIndices = ToArrayIndex(s, failIndices)
+	tx, err := w.db.BeginTx(ctx, nil)
+	if err != nil {
+		return nil, err
 	}
-	return successIndices, failIndices, er2
+	defer tx.Rollback()
+
+	for _, v := range queryArgsArray {
+		_, err = tx.Exec(v.Query, v.Params...)
+		if err != nil {
+			return buildErrorArray(w.retryAll, l), err
+		}
+	}
+
+	err = tx.Commit()
+	if err != nil {
+		return buildErrorArray(w.retryAll, l), err
+	}
+
+	return nil, nil
 }

@@ -14,6 +14,7 @@ const (
 	DriverSqlite3    = "sqlite3"
 	DriverNotSupport = "no support"
 )
+
 func GetDriver(db *sql.DB) string {
 	if db == nil {
 		return DriverNotSupport

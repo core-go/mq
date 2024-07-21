@@ -7,11 +7,12 @@ import (
 	"reflect"
 )
 
-type BatchInserter struct {
+type BatchInserter[T any] struct {
 	db           *sql.DB
 	tableName    string
 	BuildParam   func(i int) string
-	Map          func(ctx context.Context, model interface{}) (interface{}, error)
+	Map          func(*T)
+	Driver       string
 	BoolSupport  bool
 	VersionIndex int
 	Schema       *Schema
@@ -19,28 +20,35 @@ type BatchInserter struct {
 		driver.Valuer
 		sql.Scanner
 	}
+	retryAll bool
 }
-func NewBatchInserter(db *sql.DB, tableName string, modelType reflect.Type, options ...func(context.Context, interface{}) (interface{}, error)) *BatchInserter {
-	var mp func(context.Context, interface{}) (interface{}, error)
+
+func NewBatchInserter[T any](db *sql.DB, tableName string, retryAll bool, options ...func(*T)) *BatchInserter[T] {
+	var mp func(*T)
 	if len(options) > 0 && options[0] != nil {
 		mp = options[0]
 	}
-	return NewSqlBatchInserter(db, tableName, modelType, mp, nil)
+	return NewSqlBatchInserter[T](db, tableName, retryAll, mp, nil)
 }
-func NewBatchInserterWithArray(db *sql.DB, tableName string, modelType reflect.Type, toArray func(interface{}) interface {
+func NewBatchInserterWithArray[T any](db *sql.DB, tableName string, retryAll bool, toArray func(interface{}) interface {
 	driver.Valuer
 	sql.Scanner
-}, options ...func(context.Context, interface{}) (interface{}, error)) *BatchInserter {
-	var mp func(context.Context, interface{}) (interface{}, error)
+}, options ...func(*T)) *BatchInserter[T] {
+	var mp func(*T)
 	if len(options) > 0 && options[0] != nil {
 		mp = options[0]
 	}
-	return NewSqlBatchInserter(db, tableName, modelType, mp, toArray)
+	return NewSqlBatchInserter[T](db, tableName, retryAll, mp, toArray)
 }
-func NewSqlBatchInserter(db *sql.DB, tableName string, modelType reflect.Type, mp func(context.Context, interface{}) (interface{}, error), toArray func(interface{}) interface {
+func NewSqlBatchInserter[T any](db *sql.DB, tableName string, retryAll bool, mp func(*T), toArray func(interface{}) interface {
 	driver.Valuer
 	sql.Scanner
-}, options ...func(i int) string) *BatchInserter {
+}, options ...func(i int) string) *BatchInserter[T] {
+	var t T
+	modelType := reflect.TypeOf(t)
+	if modelType.Kind() != reflect.Struct {
+		panic("T must be a struct")
+	}
 	var buildParam func(i int) string
 	if len(options) > 0 && options[0] != nil {
 		buildParam = options[0]
@@ -50,35 +58,46 @@ func NewSqlBatchInserter(db *sql.DB, tableName string, modelType reflect.Type, m
 	driver := GetDriver(db)
 	boolSupport := driver == DriverPostgres
 	schema := CreateSchema(modelType)
-	return &BatchInserter{db: db, tableName: tableName, BuildParam: buildParam, BoolSupport: boolSupport, Schema: schema, Map: mp, ToArray: toArray}
+	return &BatchInserter[T]{db: db, tableName: tableName, BuildParam: buildParam, BoolSupport: boolSupport, Schema: schema, Driver: driver, Map: mp, ToArray: toArray, retryAll: retryAll}
 }
 
-func (w *BatchInserter) Write(ctx context.Context, models interface{}) ([]int, []int, error) {
-	successIndices := make([]int, 0)
-	failIndices := make([]int, 0)
-	var models2 interface{}
-	var er0 error
+func (w *BatchInserter[T]) Write(ctx context.Context, models []T) ([]int, error) {
+	l := len(models)
+	if l == 0 {
+		return nil, nil
+	}
 	if w.Map != nil {
-		models2, er0 = MapModels(ctx, models, w.Map)
-		if er0 != nil {
-			s0 := reflect.ValueOf(models2)
-			_, er0b := InterfaceSlice(models2)
-			failIndices = ToArrayIndex(s0, failIndices)
-			return successIndices, failIndices, er0b
+		for i := 0; i < l; i++ {
+			w.Map(&models[i])
 		}
-	} else {
-		models2 = models
 	}
-	s := reflect.ValueOf(models2)
-	_, er2 := InsertBatchWithSchema(ctx, w.db, w.tableName, models2, w.ToArray, w.BuildParam)
+	query, args, err := BuildToInsertBatchWithSchema(w.tableName, models, w.Driver, w.ToArray, w.BuildParam, w.Schema)
+	if err != nil {
+		return nil, err
+	}
+	tx, err := w.db.BeginTx(ctx, nil)
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback()
 
-	if er2 == nil {
-		// Return full success
-		successIndices = ToArrayIndex(s, successIndices)
-		return successIndices, failIndices, er2
-	} else {
-		// Return full fail
-		failIndices = ToArrayIndex(s, failIndices)
+	_, err = tx.ExecContext(ctx, query, args...)
+	if err != nil {
+		return buildErrorArray(w.retryAll, l), err
 	}
-	return successIndices, failIndices, er2
+	err = tx.Commit()
+	if err != nil {
+		return buildErrorArray(w.retryAll, l), err
+	}
+	return nil, nil
+}
+func buildErrorArray(retryAll bool, l int) []int {
+	if retryAll == false {
+		return nil
+	}
+	failIndices := make([]int, 0)
+	for i := 0; i < l; i++ {
+		failIndices = append(failIndices, i)
+	}
+	return failIndices
 }

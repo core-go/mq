@@ -4,14 +4,15 @@ import (
 	"context"
 	"database/sql"
 	"database/sql/driver"
+	"fmt"
 	"reflect"
 )
 
-type BatchUpdater struct {
+type BatchUpdater[T any] struct {
 	db           *sql.DB
 	tableName    string
 	BuildParam   func(i int) string
-	Map          func(ctx context.Context, model interface{}) (interface{}, error)
+	Map          func(*T)
 	BoolSupport  bool
 	VersionIndex int
 	Schema       *Schema
@@ -19,38 +20,45 @@ type BatchUpdater struct {
 		driver.Valuer
 		sql.Scanner
 	}
+	retryAll bool
 }
-func NewBatchUpdater(db *sql.DB, tableName string, modelType reflect.Type, options ...func(context.Context, interface{}) (interface{}, error)) *BatchUpdater {
-	var mp func(context.Context, interface{}) (interface{}, error)
+
+func NewBatchUpdater[T any](db *sql.DB, tableName string, retryAll bool, options ...func(*T)) *BatchUpdater[T] {
+	var mp func(*T)
 	if len(options) > 0 && options[0] != nil {
 		mp = options[0]
 	}
-	return NewSqlBatchUpdater(db, tableName, modelType, -1, mp, nil)
+	return NewSqlBatchUpdater[T](db, tableName, retryAll, -1, mp, nil)
 }
-func NewBatchUpdaterWithArray(db *sql.DB, tableName string, modelType reflect.Type, toArray func(interface{}) interface {
+func NewBatchUpdaterWithArray[T any](db *sql.DB, tableName string, retryAll bool, toArray func(interface{}) interface {
 	driver.Valuer
 	sql.Scanner
-}, options ...func(context.Context, interface{}) (interface{}, error)) *BatchUpdater {
-	var mp func(context.Context, interface{}) (interface{}, error)
+}, options ...func(*T)) *BatchUpdater[T] {
+	var mp func(*T)
 	if len(options) > 0 && options[0] != nil {
 		mp = options[0]
 	}
-	return NewSqlBatchUpdater(db, tableName, modelType, -1, mp, toArray)
+	return NewSqlBatchUpdater[T](db, tableName, retryAll, -1, mp, toArray)
 }
-func NewBatchUpdaterWithVersion(db *sql.DB, tableName string, modelType reflect.Type, versionIndex int, toArray func(interface{}) interface {
+func NewBatchUpdaterWithVersion[T any](db *sql.DB, tableName string, retryAll bool, versionIndex int, toArray func(interface{}) interface {
 	driver.Valuer
 	sql.Scanner
-}, options ...func(context.Context, interface{}) (interface{}, error)) *BatchUpdater {
-	var mp func(context.Context, interface{}) (interface{}, error)
+}, options ...func(*T)) *BatchUpdater[T] {
+	var mp func(*T)
 	if len(options) > 0 && options[0] != nil {
 		mp = options[0]
 	}
-	return NewSqlBatchUpdater(db, tableName, modelType, versionIndex, mp, toArray)
+	return NewSqlBatchUpdater[T](db, tableName, retryAll, versionIndex, mp, toArray)
 }
-func NewSqlBatchUpdater(db *sql.DB, tableName string, modelType reflect.Type, versionIndex int, mp func(context.Context, interface{}) (interface{}, error), toArray func(interface{}) interface {
+func NewSqlBatchUpdater[T any](db *sql.DB, tableName string, retryAll bool, versionIndex int, mp func(*T), toArray func(interface{}) interface {
 	driver.Valuer
 	sql.Scanner
-}, options ...func(i int) string) *BatchUpdater {
+}, options ...func(i int) string) *BatchUpdater[T] {
+	var t T
+	modelType := reflect.TypeOf(t)
+	if modelType.Kind() != reflect.Struct {
+		panic("T must be a struct")
+	}
 	var buildParam func(i int) string
 	if len(options) > 0 && options[0] != nil {
 		buildParam = options[0]
@@ -60,33 +68,47 @@ func NewSqlBatchUpdater(db *sql.DB, tableName string, modelType reflect.Type, ve
 	driver := GetDriver(db)
 	boolSupport := driver == DriverPostgres
 	schema := CreateSchema(modelType)
-	return &BatchUpdater{db: db, tableName: tableName, Schema: schema, BoolSupport: boolSupport, VersionIndex: versionIndex, Map: mp, BuildParam: buildParam, ToArray: toArray}
+	if len(schema.Keys) <= 0 {
+		panic(fmt.Sprintf("require primary key for table '%s'", tableName))
+	}
+	return &BatchUpdater[T]{db: db, tableName: tableName, Schema: schema, BoolSupport: boolSupport, VersionIndex: versionIndex, Map: mp, BuildParam: buildParam, ToArray: toArray, retryAll: retryAll}
 }
-func (w *BatchUpdater) Write(ctx context.Context, models interface{}) ([]int, []int, error) {
-	successIndices := make([]int, 0)
-	failIndices := make([]int, 0)
-	var models2 interface{}
-	var er0 error
+func (w *BatchUpdater[T]) Write(ctx context.Context, models []T) ([]int, error) {
+	l := len(models)
+	if l == 0 {
+		return nil, nil
+	}
 	if w.Map != nil {
-		models2, er0 = MapModels(ctx, models, w.Map)
-		if er0 != nil {
-			s0 := reflect.ValueOf(models2)
-			_, er0b := InterfaceSlice(models2)
-			failIndices = ToArrayIndex(s0, failIndices)
-			return successIndices, failIndices, er0b
+		for i := 0; i < l; i++ {
+			w.Map(&models[i])
 		}
-	} else {
-		models2 = models
 	}
-	_, err := UpdateBatchWithVersion(ctx, w.db, w.tableName, models2, w.VersionIndex, w.ToArray, w.BuildParam, w.BoolSupport, w.Schema)
-	s := reflect.ValueOf(models)
-	if err == nil {
-		// Return full success
-		successIndices = ToArrayIndex(s, successIndices)
-		return successIndices, failIndices, err
-	} else {
-		// Return full fail
-		failIndices = ToArrayIndex(s, failIndices)
+	var queryArgsArray []Statement
+	for _, v := range models {
+		query, args := BuildToUpdateWithArray(w.tableName, v, w.BuildParam, w.BoolSupport, w.ToArray, w.Schema)
+		queryArgs := Statement{
+			Query:  query,
+			Params: args,
+		}
+		queryArgsArray = append(queryArgsArray, queryArgs)
 	}
-	return successIndices, failIndices, err
+	tx, err := w.db.BeginTx(ctx, nil)
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback()
+
+	for _, v := range queryArgsArray {
+		_, err = tx.Exec(v.Query, v.Params...)
+		if err != nil {
+			return buildErrorArray(w.retryAll, l), err
+		}
+	}
+
+	err = tx.Commit()
+	if err != nil {
+		return buildErrorArray(w.retryAll, l), err
+	}
+
+	return nil, nil
 }
