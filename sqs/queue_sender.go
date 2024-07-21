@@ -14,25 +14,6 @@ type QueueSender struct {
 func NewQueueSender(client *sqs.SQS, delaySeconds int64) *QueueSender {
 	return &QueueSender{Client: client, DelaySeconds: &delaySeconds}
 }
-func (p *QueueSender) SendMessage(ctx context.Context, queueName string, data []byte, attributes map[string]string) (string, error) {
-	queueUrl, er0 := GetQueueUrl(p.Client, queueName)
-	if er0 != nil {
-		return "", er0
-	}
-	attrs := MapToAttributes(attributes)
-	s := string(data)
-	result, err := p.Client.SendMessage(&sqs.SendMessageInput{
-		DelaySeconds:      p.DelaySeconds,
-		MessageAttributes: attrs,
-		MessageBody:       aws.String(s),
-		QueueUrl:          &queueUrl,
-	})
-	if result != nil && result.MessageId != nil {
-		return *result.MessageId, err
-	} else {
-		return "", err
-	}
-}
 func (p *QueueSender) Send(ctx context.Context, queueName string, data []byte, attributes map[string]string) error {
 	queueUrl, er0 := GetQueueUrl(p.Client, queueName)
 	if er0 != nil {
