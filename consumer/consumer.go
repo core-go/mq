@@ -2,10 +2,15 @@ package consumer
 
 import "context"
 
-type Consumer struct {
-	Consume func(ctx context.Context, handle func(ctx context.Context, data []byte, header map[string]string, err error) error)
-	Handle func(ctx context.Context, data []byte, header map[string]string, err error) error
+type SimpleConsumer struct {
+	Consume func(ctx context.Context, handle func(context.Context, []byte)
+	Handle  func(context.Context, []byte)
 }
 
-type Handle func(ctx context.Context, data []byte, header map[string]string, err error) error
-type Consume func(ctx context.Context, handle func(ctx context.Context, data []byte, header map[string]string, err error) error)
+type Consumer struct {
+	Consume func(ctx context.Context, handle func(context.Context, []byte, map[string]string))
+	Handle  func(context.Context, []byte, map[string]string)
+}
+
+type Handle func(context.Context, []byte, map[string]string)
+type Consume func(context.Context, func(context.Context, []byte, map[string]string))
