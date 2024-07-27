@@ -24,7 +24,7 @@
 ### Apache Kafka
 - A distributed streaming platform that handles high-throughput, low-latency message processing. It is often used for building real-time data pipelines and streaming applications.
 - Kafka GO library is at [kafka](https://github.com/core-go/kafka), to wrap and simplify 3 Kafka GO libraries: [segmentio/kafka-go](https://github.com/segmentio/kafka-go), [IBM/sarama](https://github.com/IBM/sarama) and [confluent](https://github.com/confluentinc/confluent-kafka-go). The sample is at [go-kafka-sample](https://github.com/project-samples/go-kafka-sample)
-- Kafka nodejs library is at [kafka](https://github.com/core-ts/kafka), to wrap and simplify [kafkajs](https://www.npmjs.com/package/kafkajs). The sample is at [kafka-sample](https://github.com/typescript-tutorial/kafka-sample)
+- Kafka nodejs library is at [kafka](https://www.npmjs.com/package/kafka-plus), to wrap and simplify [kafkajs](https://www.npmjs.com/package/kafkajs). The sample is at [kafka-sample](https://github.com/typescript-tutorial/kafka-sample)
 ### Amazon SQS (Simple Queue Service)
 - A fully managed message queue service offered by AWS. It provides a reliable, scalable, and cost-effective way to decouple and coordinate distributed software systems and microservices.
 - SQS GO library is at [sqs](https://github.com/core-go/sqs), to wrap and simplify [aws-sdk-go/service/sqs](https://github.com/aws/aws-sdk-go/tree/main/service/sqs). The sample is at [go-amazon-sqs-sample](https://github.com/project-samples/go-amazon-sqs-sample)
@@ -34,7 +34,7 @@
 - Pub/Sub nodejs library is at [google-pubsub](https://www.npmjs.com/package/google-pubsub), to wrap and simplify [@google-cloud/pubsub](https://www.npmjs.com/package/@google-cloud/pubsub). The sample is at [pubsub-sample](https://github.com/typescript-tutorial/pubsub-sample)
 ### IBM MQ
 - IBM MQ at [ibmmq-plus](https://www.npmjs.com/package/ibmmq-plus), to wrap and simplify [ibmmq](https://github.com/ibm-messaging/mq-golang). The sample is at [go-ibm-mq-sample](https://github.com/project-samples/go-ibm-mq-sample)
-- IBM MQ nodejs library is at [ibmmq-plus](https://github.com/core-ts/ibmmq), to wrap and simplify [ibmmq](https://www.npmjs.com/package/ibmmq). The sample is at [ibmmq-sample](https://github.com/typescript-tutorial/ibmmq-sample)
+- IBM MQ nodejs library is at [ibmmq-plus](https://www.npmjs.com/package/ibmmq-plus), to wrap and simplify [ibmmq](https://www.npmjs.com/package/ibmmq). The sample is at [ibmmq-sample](https://github.com/typescript-tutorial/ibmmq-sample)
 ### Active MQ
 - Active MQ at [activemq](https://github.com/core-go/activemq), to wrap and simplify [go-stomp](https://github.com/go-stomp/stomp). The sample is at [go-active-mq-sample](https://github.com/project-samples/go-active-mq-sample)
 - Active MQ nodejs library is at [activemq](https://www.npmjs.com/package/activemq), to wrap and simplify [activemq](https://www.npmjs.com/package/amqplib). The sample is at [activemq-sample](https://github.com/typescript-tutorial/activemq-sample)
