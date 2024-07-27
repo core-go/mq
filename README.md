@@ -37,7 +37,7 @@
 - IBM MQ nodejs library is at [ibmmq-plus](https://www.npmjs.com/package/ibmmq-plus), to wrap and simplify [ibmmq](https://www.npmjs.com/package/ibmmq). The sample is at [ibmmq-sample](https://github.com/typescript-tutorial/ibmmq-sample)
 ### Active MQ
 - Active MQ at [activemq](https://github.com/core-go/activemq), to wrap and simplify [go-stomp](https://github.com/go-stomp/stomp). The sample is at [go-active-mq-sample](https://github.com/project-samples/go-active-mq-sample)
-- Active MQ nodejs library is at [activemq](https://www.npmjs.com/package/activemq), to wrap and simplify [activemq](https://www.npmjs.com/package/amqplib). The sample is at [activemq-sample](https://github.com/typescript-tutorial/activemq-sample)
+- Active MQ nodejs library is at [activemq](https://www.npmjs.com/package/activemq), to wrap and simplify [amqplib](https://www.npmjs.com/package/amqplib). The sample is at [activemq-sample](https://github.com/typescript-tutorial/activemq-sample)
 ### NATS
 - NATS at [nats](https://github.com/core-go/nats), to wrap and simplify [nats.go](https://github.com/nats-io/nats.go). The sample is at [go-nats-sample](https://github.com/project-samples/go-nats-sample)
 - NATS nodejs library is at [nats-plus](https://www.npmjs.com/package/nats-plus), to wrap and simplify [nats](https://www.npmjs.com/package/nats). The sample is at [nats-sample](https://github.com/typescript-tutorial/nats-sample)
