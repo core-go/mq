@@ -1,10 +1,11 @@
 package activemq
 
 import (
-	"github.com/go-stomp/stomp"
 	"log"
 	"os"
 	"time"
+
+	"github.com/go-stomp/stomp/v3"
 )
 
 func NewConn(userName string, password string, addr string) (*stomp.Conn, error) {

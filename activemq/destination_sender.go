@@ -2,7 +2,8 @@ package activemq
 
 import (
 	"context"
-	"github.com/go-stomp/stomp"
+
+	"github.com/go-stomp/stomp/v3"
 )
 
 type DestinationSender struct {

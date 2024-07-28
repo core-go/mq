@@ -2,7 +2,8 @@ package activemq
 
 import (
 	"context"
-	"github.com/go-stomp/stomp"
+	
+	"github.com/go-stomp/stomp/v3"
 )
 
 type HealthChecker struct {
@@ -26,7 +27,7 @@ func (s *HealthChecker) Name() string {
 
 func (s *HealthChecker) Check(ctx context.Context) (map[string]interface{}, error) {
 	var conn *stomp.Conn
-	
+
 	res := make(map[string]interface{})
 	var err error
 	conn, err = stomp.Dial("tcp", s.addr)
