@@ -5,8 +5,8 @@ import (
 	"crypto/x509"
 	"errors"
 	"github.com/IBM/sarama"
-	"io"
 	"log"
+	"os"
 )
 
 func GetConfig(brokers []string, algorithm *string, config *ClientConfig, conf sarama.Config) (*sarama.Config, error) {
@@ -91,7 +91,7 @@ func CreateTLSConfig(c TLSConfig) (t *tls.Config) {
 		if err != nil {
 			log.Fatalf("%v", err)
 		}
-		caCert, err := io.ReadFile(c.CaFile)
+		caCert, err := os.ReadFile(c.CaFile)
 		if err != nil {
 			log.Fatalf("%v", err)
 		}

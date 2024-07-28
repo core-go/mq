@@ -41,6 +41,8 @@
 ### NATS
 - NATS at [nats](https://github.com/core-go/nats), to wrap and simplify [nats.go](https://github.com/nats-io/nats.go). The sample is at [go-nats-sample](https://github.com/project-samples/go-nats-sample)
 - NATS nodejs library is at [nats-plus](https://www.npmjs.com/package/nats-plus), to wrap and simplify [nats](https://www.npmjs.com/package/nats). The sample is at [nats-sample](https://github.com/typescript-tutorial/nats-sample)
+### Azure Service Bus
+- A fully managed enterprise message broker with message queues and publish-subscribe topics. It is designed for complex messaging scenarios in Azure.
 
 ### Advantages of Message Queues
 #### Decoupling
@@ -83,6 +85,9 @@
 #### Decoupling Frontend and Backend
 - Frontend applications can send messages to a queue, which are then processed by backend services.
 - This improves responsiveness and allows for better handling of varying load conditions.
+
+## Conclusion
+Message queues are a crucial component in modern software architecture, providing a robust way to manage communication between different parts of a system. They enable decoupling, scalability, reliability, and fault tolerance, making them essential for building large-scale, distributed, and resilient applications. Understanding and implementing message queues can significantly enhance the efficiency and effectiveness of software systems.
 
 ## Installation
 Please make sure to initialize a Go module before installing core-go/mq:
