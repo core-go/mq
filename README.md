@@ -3,6 +3,8 @@
 ## Message Queue
 - A message queue is a communication method used in software systems to exchange information between different components or services asynchronously. It provides a way to send messages between producers (senders) and consumers (receivers) without requiring both parties to interact with the message queue at the same time. This decoupling allows for more scalable, reliable, and flexible system architectures.
 
+
+- You can refer to [Message Queue](https://www.linkedin.com/pulse/message-queue-go-nodejs-duc-nguyen-lb81c) at my [Linked In](https://vn.linkedin.com/in/duc-nguyen-437240239?trk=article-ssr-frontend-pulse_publisher-author-card) for more details.
 ### Key Concepts of Message Queues
 #### Producers (Publishers/Senders/Writers)
 - The components or services that send messages to the queue.
