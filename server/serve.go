@@ -26,34 +26,34 @@ func Addr(port *int64) string {
 	}
 	return server
 }
-func ServerInfo(conf ServerConfig) string {
-	if len(conf.Version) > 0 {
-		if conf.Port != nil && *conf.Port >= 0 {
-			return "Start service: " + conf.Name + " at port " + strconv.FormatInt(*conf.Port, 10) + " with version " + conf.Version
+func ServerInfo(cfg ServerConfig) string {
+	if len(cfg.Version) > 0 {
+		if cfg.Port != nil && *cfg.Port >= 0 {
+			return "Start service: " + cfg.Name + " at port " + strconv.FormatInt(*cfg.Port, 10) + " with version " + cfg.Version
 		} else {
-			return "Start service: " + conf.Name + " with version " + conf.Version
+			return "Start service: " + cfg.Name + " with version " + cfg.Version
 		}
 	} else {
-		if conf.Port != nil && *conf.Port >= 0 {
-			return "Start service: " + conf.Name + " at port " + strconv.FormatInt(*conf.Port, 10)
+		if cfg.Port != nil && *cfg.Port >= 0 {
+			return "Start service: " + cfg.Name + " at port " + strconv.FormatInt(*cfg.Port, 10)
 		} else {
-			return "Start service: " + conf.Name
+			return "Start service: " + cfg.Name
 		}
 	}
 }
-func Serve(conf ServerConfig, check func(w http.ResponseWriter, r *http.Request), options ...*tls.Config) {
-	log.Println(ServerInfo(conf))
+func Serve(cfg ServerConfig, check func(w http.ResponseWriter, r *http.Request), options ...*tls.Config) {
+	log.Println(ServerInfo(cfg))
 	http.HandleFunc("/health", check)
 	http.HandleFunc("/", check)
-	srv := CreateServer(conf, nil, options...)
+	srv := CreateServer(cfg, nil, options...)
 	err := srv.ListenAndServe()
 	if err != nil {
 		log.Println(err.Error())
 		panic(err)
 	}
 }
-func CreateServer(conf ServerConfig, handler http.Handler, options ...*tls.Config) *http.Server {
-	addr := Addr(conf.Port)
+func CreateServer(cfg ServerConfig, handler http.Handler, options ...*tls.Config) *http.Server {
+	addr := Addr(cfg.Port)
 	srv := http.Server{
 		Addr:      addr,
 		Handler:   nil,
@@ -62,20 +62,20 @@ func CreateServer(conf ServerConfig, handler http.Handler, options ...*tls.Confi
 	if len(options) > 0 && options[0] != nil {
 		srv.TLSConfig = options[0]
 	}
-	if conf.ReadTimeout != nil && *conf.ReadTimeout > 0 {
-		srv.ReadTimeout = time.Duration(*conf.ReadTimeout) * time.Second
+	if cfg.ReadTimeout != nil && *cfg.ReadTimeout > 0 {
+		srv.ReadTimeout = time.Duration(*cfg.ReadTimeout) * time.Second
 	}
-	if conf.ReadHeaderTimeout != nil && *conf.ReadHeaderTimeout > 0 {
-		srv.ReadHeaderTimeout = time.Duration(*conf.ReadHeaderTimeout) * time.Second
+	if cfg.ReadHeaderTimeout != nil && *cfg.ReadHeaderTimeout > 0 {
+		srv.ReadHeaderTimeout = time.Duration(*cfg.ReadHeaderTimeout) * time.Second
 	}
-	if conf.WriteTimeout != nil && *conf.WriteTimeout > 0 {
-		srv.WriteTimeout = time.Duration(*conf.WriteTimeout) * time.Second
+	if cfg.WriteTimeout != nil && *cfg.WriteTimeout > 0 {
+		srv.WriteTimeout = time.Duration(*cfg.WriteTimeout) * time.Second
 	}
-	if conf.IdleTimeout != nil && *conf.IdleTimeout > 0 {
-		srv.IdleTimeout = time.Duration(*conf.IdleTimeout) * time.Second
+	if cfg.IdleTimeout != nil && *cfg.IdleTimeout > 0 {
+		srv.IdleTimeout = time.Duration(*cfg.IdleTimeout) * time.Second
 	}
-	if conf.MaxHeaderBytes != nil && *conf.MaxHeaderBytes > 0 {
-		srv.MaxHeaderBytes = *conf.MaxHeaderBytes
+	if cfg.MaxHeaderBytes != nil && *cfg.MaxHeaderBytes > 0 {
+		srv.MaxHeaderBytes = *cfg.MaxHeaderBytes
 	}
 	srv.Handler = handler
 	return &srv
