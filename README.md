@@ -32,9 +32,9 @@ To mitigate these issues, you can create a standardized interface for message pu
 - <b>Advanced Features</b>: In the wrapper library, we allow to use GO libraries at native level, to let developers access to advanced features of specific message queues through optional extensions, preserving flexibility without sacrificing simplicity.
 #### The Pros and Cons of Standardization
 <b>Pros</b>:
+- <b>Faster Learning Curve</b>: New developers joining your team don’t need to learn the intricacies of multiple message queues. Instead, they can focus on the standardized interface, getting up to speed faster and contributing more effectively..
 - <b>Simplified Codebase</b>: A standardized interface reduces the complexity of your codebase by decoupling it from specific message queue implementations.
 - <b>Ease of Switching</b>: You can switch message queues with minimal effort, reducing the risk and cost of migrations.
-- <b>Faster Onboarding</b>: New developers only need to learn the standardized interface, speeding up onboarding and reducing the learning curve.
 - <b>Access to Advanced Features</b>: We allow to use GO libraries at native level, to allow developers to access to advanced features of a specific message queue like Kafka, IBM MQ.
 
 <b>Cons</b>:
