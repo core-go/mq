@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
+	"io"
+	"os"
 	"strings"
 	"time"
 )
@@ -16,8 +18,10 @@ var logger *zap.Logger
 func SetLogger(logger0 *zap.Logger) {
 	logger = logger0
 }
-
-func Initialize(c Config) (*zap.Logger, error) {
+func Initialize(c Config, opts ...zapcore.Core) (*zap.Logger, error) {
+	return InitializeWithWriter(c, nil, opts...)
+}
+func InitializeWithWriter(c Config, getWriter func(logLocation string, rotationTime time.Duration, maxSize int64) (io.Writer, func() error), opts ...zapcore.Core) (*zap.Logger, error) {
 	fieldConfig.FieldMap = c.FieldMap
 	if len(c.Duration) > 0 {
 		fieldConfig.Duration = c.Duration
@@ -28,7 +32,47 @@ func Initialize(c Config) (*zap.Logger, error) {
 		fields := strings.Split(c.Fields, ",")
 		fieldConfig.Fields = &fields
 	}
-	l, err := NewConfig(c).Build()
+
+	var showCallerLv []zapcore.Level
+	if len(c.CallerLevel) > 0 {
+		ar := strings.Split(c.CallerLevel, ",")
+		for _, value := range ar {
+			lv := zap.InfoLevel
+			if err := lv.Set(value); err == nil {
+				showCallerLv = append(showCallerLv, lv)
+			}
+		}
+	} else {
+		showCallerLv = []zapcore.Level{zapcore.ErrorLevel, zapcore.PanicLevel}
+	}
+	level := zap.InfoLevel
+	if err := level.Set(c.Level); err != nil {
+		return nil, err
+	}
+	cfg := NewConfig(c)
+	options := []zap.Option{zap.WrapCore(func(core zapcore.Core) zapcore.Core {
+		if len(opts) > 0 && opts[0] != nil {
+			return opts[0]
+		} else {
+			c, _ := NewLogTraceLevelCore(core, zap.DebugLevel, c.CallerSkip, showCallerLv...)
+			return c
+		}
+	})}
+	if len(c.Output) > 0 && getWriter != nil {
+		err := CreatePath(c.Output)
+		if err != nil {
+			return nil, err
+		}
+		dailyRotate := 24 * time.Hour
+		byteSizeLog, err := c.MaxSize.GetByteSize()
+		if err != nil {
+			byteSizeLog = 0
+		}
+		w, _ := getWriter(c.Output, dailyRotate, byteSizeLog)
+		syncer := zap.CombineWriteSyncers(os.Stdout, zapcore.AddSync(w))
+		options = append(options, NewWriter(syncer, cfg))
+	}
+	l, err := cfg.Build(options...)
 	if err == nil {
 		logger = l
 	}
@@ -82,6 +126,7 @@ func NewConfig(c Config) zap.Config {
 			Thereafter: 100,
 		},
 		Encoding:         "json",
+		DisableCaller:    true,
 		EncoderConfig:    NewEncoderConfig(c),
 		OutputPaths:      []string{"stderr"},
 		ErrorOutputPaths: []string{"stderr"},
@@ -95,6 +140,7 @@ func NewEncoderConfig(c Config) zapcore.EncoderConfig {
 		c2.Level = c1.Level
 		c2.Name = c1.Name
 		c2.Caller = c1.Caller
+		c2.Function = c1.Function
 		c2.Msg = c1.Msg
 		c2.Stacktrace = c1.Stacktrace
 	}
@@ -110,22 +156,23 @@ func NewEncoderConfig(c Config) zapcore.EncoderConfig {
 	if len(c2.Msg) == 0 {
 		c2.Msg = "msg"
 	}
-	if len(c2.Stacktrace) == 0 {
-		c2.Stacktrace = "stacktrace"
-	}
-	return zapcore.EncoderConfig{
+	ec := zapcore.EncoderConfig{
 		TimeKey:        c2.Time,
 		LevelKey:       c2.Level,
 		NameKey:        c2.Name,
 		CallerKey:      c2.Caller,
+		FunctionKey:    c2.Function,
 		MessageKey:     c2.Msg,
-		StacktraceKey:  c2.Stacktrace,
 		LineEnding:     zapcore.DefaultLineEnding,
 		EncodeLevel:    zapcore.LowercaseLevelEncoder,
 		EncodeTime:     zapcore.ISO8601TimeEncoder,
 		EncodeDuration: zapcore.SecondsDurationEncoder,
 		EncodeCaller:   zapcore.ShortCallerEncoder,
 	}
+	if len(c2.Stacktrace) > 0 {
+		ec.StacktraceKey = "stacktrace"
+	}
+	return ec
 }
 
 func Logger() *zap.Logger {
@@ -396,6 +443,9 @@ func Panicf(ctx context.Context, format string, args ...interface{}) {
 
 func BuildLogFields(m map[string]interface{}) []zap.Field {
 	fields := make([]zap.Field, 0)
+	if m == nil || len(m) == 0 {
+		return fields
+	}
 	for k, v := range m {
 		s, ok := v.(string)
 		if ok {
@@ -412,14 +462,20 @@ func BuildLogFields(m map[string]interface{}) []zap.Field {
 					f3 := zap.Int64(k, i3)
 					fields = append(fields, f3)
 				} else {
-					i4, ok4 := v.(float64)
+					i4, ok4 := v.(map[string]interface{})
 					if ok4 {
-						f4 := zap.Float64(k, i4)
+						f4 := zap.Reflect(k, i4)
 						fields = append(fields, f4)
 					} else {
-						msg := fmt.Sprintf("%v", v)
-						f5 := zap.String(k, msg)
-						fields = append(fields, f5)
+						i5, ok5 := v.(float64)
+						if ok5 {
+							f5 := zap.Float64(k, i5)
+							fields = append(fields, f5)
+						} else {
+							msg := fmt.Sprintf("%v", v)
+							f6 := zap.String(k, msg)
+							fields = append(fields, f6)
+						}
 					}
 				}
 			}
@@ -530,4 +586,54 @@ func PanicFields(ctx context.Context, msg string, fields map[string]interface{})
 }
 func DPanicFields(ctx context.Context, msg string, fields map[string]interface{}) {
 	DPanicWithFields(ctx, msg, fields)
+}
+
+func LogDebug(ctx context.Context, msg string, opts ...map[string]interface{}) {
+	if len(opts) > 0 {
+		DebugWithFields(ctx, msg, opts[0])
+	} else {
+		DebugWithFields(ctx, msg, nil)
+	}
+}
+func LogInfo(ctx context.Context, msg string, opts ...map[string]interface{}) {
+	if len(opts) > 0 {
+		InfoWithFields(ctx, msg, opts[0])
+	} else {
+		InfoWithFields(ctx, msg, nil)
+	}
+}
+func LogWarn(ctx context.Context, msg string, opts ...map[string]interface{}) {
+	if len(opts) > 0 {
+		WarnWithFields(ctx, msg, opts[0])
+	} else {
+		WarnWithFields(ctx, msg, nil)
+	}
+}
+func LogError(ctx context.Context, msg string, opts ...map[string]interface{}) {
+	if len(opts) > 0 {
+		ErrorWithFields(ctx, msg, opts[0])
+	} else {
+		ErrorWithFields(ctx, msg, nil)
+	}
+}
+func LogFatal(ctx context.Context, msg string, opts ...map[string]interface{}) {
+	if len(opts) > 0 {
+		FatalWithFields(ctx, msg, opts[0])
+	} else {
+		FatalWithFields(ctx, msg, nil)
+	}
+}
+func LogPanic(ctx context.Context, msg string, opts ...map[string]interface{}) {
+	if len(opts) > 0 {
+		PanicWithFields(ctx, msg, opts[0])
+	} else {
+		PanicWithFields(ctx, msg, nil)
+	}
+}
+func LogDPanic(ctx context.Context, msg string, opts ...map[string]interface{}) {
+	if len(opts) > 0 {
+		DPanicWithFields(ctx, msg, opts[0])
+	} else {
+		DPanicWithFields(ctx, msg, nil)
+	}
 }

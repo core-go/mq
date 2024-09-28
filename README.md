@@ -1,5 +1,5 @@
 # mq
-![Message Queue](https://cdn-images-1.medium.com/max/800/1*UbKJu2BcAYim8_oJg8Ns6A.png)
+![Message Queue](https://cdn-images-1.medium.com/max/800/1*a3_1glo06Fgh-pkqIATyng.png)
 ## Message Queue
 A message queue is a communication method used in software systems to exchange information between different components or services asynchronously. It provides a way to send messages between producers (senders) and consumers (receivers) without requiring both parties to interact with the message queue at the same time. This decoupling allows for more scalable, reliable, and flexible system architectures.
 
